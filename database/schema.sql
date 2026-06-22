@@ -603,3 +603,42 @@ CREATE TABLE IF NOT EXISTS schedule_day_presenters (
 );
 
 CREATE INDEX IF NOT EXISTS idx_schedule_day_presenters_schedule_id ON schedule_day_presenters(schedule_id);
+
+-- Quran memorisation assignments
+CREATE TABLE IF NOT EXISTS quran_assignments (
+  id SERIAL PRIMARY KEY,
+  user_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+  page_from VARCHAR(50) NOT NULL,
+  page_to VARCHAR(50) NOT NULL,
+  assigned_for DATE NOT NULL,
+  notes TEXT,
+  assigned_by INTEGER REFERENCES users(id) ON DELETE SET NULL,
+  admin_note TEXT,
+  status VARCHAR(20) NOT NULL DEFAULT 'assigned',
+  marked_by INTEGER REFERENCES users(id) ON DELETE SET NULL,
+  completed_at TIMESTAMPTZ,
+  created_at TIMESTAMPTZ DEFAULT NOW(),
+  updated_at TIMESTAMPTZ DEFAULT NOW()
+);
+
+CREATE INDEX IF NOT EXISTS idx_quran_assignments_user_id ON quran_assignments(user_id);
+CREATE INDEX IF NOT EXISTS idx_quran_assignments_assigned_for ON quran_assignments(assigned_for DESC);
+
+-- One-on-one student meetings
+CREATE TABLE IF NOT EXISTS student_meetings (
+  id SERIAL PRIMARY KEY,
+  user_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+  title VARCHAR(255) NOT NULL,
+  agenda TEXT,
+  meeting_at TIMESTAMPTZ NOT NULL,
+  location VARCHAR(255),
+  created_by INTEGER REFERENCES users(id) ON DELETE SET NULL,
+  status VARCHAR(20) NOT NULL DEFAULT 'scheduled',
+  outcome_note TEXT,
+  completed_at TIMESTAMPTZ,
+  created_at TIMESTAMPTZ DEFAULT NOW(),
+  updated_at TIMESTAMPTZ DEFAULT NOW()
+);
+
+CREATE INDEX IF NOT EXISTS idx_student_meetings_user_id ON student_meetings(user_id);
+CREATE INDEX IF NOT EXISTS idx_student_meetings_meeting_at ON student_meetings(meeting_at DESC);
