@@ -107,12 +107,12 @@ async function register(req, res) {
     // Validate invite token only when a registration link was used.
     if (invite_token) {
       const [invRows] = await client.query(
-        "SELECT * FROM invite_tokens WHERE token=? AND used=FALSE AND expires_at > NOW()",
+        "SELECT * FROM invite_tokens WHERE token=? AND used < max_uses AND expires_at > NOW()",
         [invite_token]
       );
       if (!invRows.length) {
         await client.query('ROLLBACK');
-        return res.status(400).json({ error: 'Invalid or expired invite link' });
+        return res.status(400).json({ error: 'Invalid, expired, or fully used invite link' });
       }
     }
 
@@ -159,9 +159,9 @@ async function register(req, res) {
 
     await saveStudentDocuments(client, userId, req.body);
 
-    // Mark token as used when registration came from an invite link.
+    // Increment use count when registration came from an invite link.
     if (invite_token) {
-      await client.query('UPDATE invite_tokens SET used=TRUE WHERE token=?', [invite_token]);
+      await client.query('UPDATE invite_tokens SET used = used + 1 WHERE token=?', [invite_token]);
     }
 
     await client.query('COMMIT');
@@ -211,10 +211,10 @@ async function validateInvite(req, res) {
   if (!token) return res.status(400).json({ error: 'Token required' });
   try {
     const [rows] = await pool.query(
-      "SELECT id FROM invite_tokens WHERE token=? AND used=FALSE AND expires_at > NOW()",
+      "SELECT id FROM invite_tokens WHERE token=? AND used < max_uses AND expires_at > NOW()",
       [token]
     );
-    if (!rows.length) return res.status(400).json({ valid: false, error: 'Invalid or expired invite link' });
+    if (!rows.length) return res.status(400).json({ valid: false, error: 'Invalid, expired, or fully used invite link' });
     res.json({ valid: true });
   } catch (err) {
     res.status(500).json({ error: err.message });

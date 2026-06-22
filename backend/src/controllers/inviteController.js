@@ -10,16 +10,17 @@ function getFrontendBaseUrl(req) {
 // POST /api/admin/invite/single — one link, no email required
 async function generateSingleInvite(req, res) {
   try {
+    const maxUses = parseInt(req.body.max_uses) || 1;
     const token = crypto.randomBytes(32).toString('hex');
     const settings = await getAppSettings();
     const expiryDays = Number(settings.registration_invite_expiry_days || 7);
     const expires_at = new Date(Date.now() + expiryDays * 24 * 60 * 60 * 1000);
     await pool.query(
-      'INSERT INTO invite_tokens (token, created_by, expires_at) VALUES (?,?,?)',
-      [token, req.user.id, expires_at]
+      'INSERT INTO invite_tokens (token, created_by, expires_at, max_uses) VALUES (?,?,?,?)',
+      [token, req.user.id, expires_at, Math.max(1, maxUses)]
     );
     const baseUrl = getFrontendBaseUrl(req);
-    res.json({ link: `${baseUrl}/register?token=${token}`, expires_at });
+    res.json({ link: `${baseUrl}/register?token=${token}`, expires_at, max_uses: Math.max(1, maxUses) });
   } catch (err) {
     res.status(500).json({ error: err.message });
   }
@@ -38,13 +39,14 @@ async function generateInvite(req, res) {
   const expiryDays = Number(settings.registration_invite_expiry_days || 7);
   const expires_at = new Date(Date.now() + expiryDays * 24 * 60 * 60 * 1000);
 
+  const maxUses = parseInt(req.body.max_uses) || 1;
   try {
     const results = await Promise.all(
       emails.map(async (email) => {
         const token = crypto.randomBytes(32).toString('hex');
         await pool.query(
-      'INSERT INTO invite_tokens (token, created_by, expires_at) VALUES (?,?,?)',
-          [token, req.user.id, expires_at]
+      'INSERT INTO invite_tokens (token, created_by, expires_at, max_uses) VALUES (?,?,?,?)',
+          [token, req.user.id, expires_at, Math.max(1, maxUses)]
         );
         const link = `${baseUrl}/register?token=${token}`;
 
@@ -74,7 +76,7 @@ async function generateInvite(req, res) {
 async function listInvites(req, res) {
   try {
     const [rows] = await pool.query(
-      `SELECT t.id, t.token, t.used, t.expires_at, t.created_at, u.email AS created_by_email
+      `SELECT t.id, t.token, t.used, t.max_uses, t.expires_at, t.created_at, u.email AS created_by_email
        FROM invite_tokens t
        LEFT JOIN users u ON u.id = t.created_by
        ORDER BY t.created_at DESC LIMIT 50`
