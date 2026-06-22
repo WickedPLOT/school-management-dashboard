@@ -1,33 +1,15 @@
 const pool = require('../config/db');
-const fs = require('fs');
-const path = require('path');
 const pdfParse = require('pdf-parse');
 const { notifyStudentsAboutNewBook } = require('../services/notificationService');
-
-// Temporary upload directory
-const UPLOAD_DIR = path.join(__dirname, '../../uploads/books');
-
-// Ensure upload directory exists (may fail on read-only filesystems like Vercel)
-try {
-  if (!fs.existsSync(UPLOAD_DIR)) {
-    fs.mkdirSync(UPLOAD_DIR, { recursive: true });
-  }
-} catch (e) {
-  // Silently fail - cloud storage will be needed for production
-}
 
 function adminSectionFilter(req, alias = 'pb') {
   if (req.user.role === 'super_admin') return { clause: '', params: [] };
   return { clause: ` AND ${alias}.section_scope IN ('all', ?)`, params: [req.user.section] };
 }
 
-/**
- * Parse PDF and extract page count and metadata
- */
-async function parsePDFMetadata(filePath) {
+async function parsePDFMetadata(buffer) {
   try {
-    const fileBuffer = fs.readFileSync(filePath);
-    const pdfData = await pdfParse(fileBuffer);
+    const pdfData = await pdfParse(buffer);
     return {
       totalPages: pdfData.numpages || 0,
       success: true,
@@ -42,21 +24,8 @@ async function parsePDFMetadata(filePath) {
   }
 }
 
-/**
- * Convert file to base64 for database storage
- */
-function fileToBase64(filePath) {
-  const fileBuffer = fs.readFileSync(filePath);
-  return fileBuffer.toString('base64');
-}
-
-/**
- * Save base64 PDF to file system
- */
-function base64ToFile(base64Data, outputPath) {
-  const buffer = Buffer.from(base64Data, 'base64');
-  fs.writeFileSync(outputPath, buffer);
-  return outputPath;
+function bufferToBase64(buffer) {
+  return buffer.toString('base64');
 }
 
 /**
@@ -91,13 +60,11 @@ async function createBook(req, res) {
   const file = req.file;
 
   if (!title?.trim()) {
-    if (file) fs.unlinkSync(file.path);
     return res.status(400).json({ error: 'title is required' });
   }
 
   const scope = section_scope || 'all';
   if (!['brothers', 'sisters', 'all'].includes(scope)) {
-    if (file) fs.unlinkSync(file.path);
     return res.status(400).json({ error: 'Invalid section_scope' });
   }
 
@@ -106,24 +73,16 @@ async function createBook(req, res) {
     let fileName = null;
     let totalPages = 0;
 
-    if (file) {
-      // Parse PDF and extract metadata
-      const pdfMeta = await parsePDFMetadata(file.path);
+    if (file && file.buffer) {
+      const pdfMeta = await parsePDFMetadata(file.buffer);
       if (!pdfMeta.success) {
-        fs.unlinkSync(file.path);
         return res.status(400).json({ error: `PDF parsing failed: ${pdfMeta.error}` });
       }
       totalPages = pdfMeta.totalPages;
-
-      // Convert to base64 for database storage
-      fileData = fileToBase64(file.path);
+      fileData = bufferToBase64(file.buffer);
       fileName = file.originalname;
-
-      // Clean up temp file
-      fs.unlinkSync(file.path);
     }
 
-    // Store in database
     const [insertResult] = await pool.query(
       `INSERT INTO platform_books (title, description, file_name, file_data, total_pages, section_scope, is_published, created_by)
        VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
@@ -142,7 +101,6 @@ async function createBook(req, res) {
     const [rows] = await pool.query('SELECT * FROM platform_books WHERE id = ?', [insertResult.insertId]);
     const book = rows[0];
 
-    // Notify students about new book (async)
     if (book.is_published) {
       notifyStudentsAboutNewBook(book.title, scope, book.id).catch(err =>
         console.error('Notification error:', err)
@@ -151,7 +109,6 @@ async function createBook(req, res) {
 
     res.status(201).json(book);
   } catch (err) {
-    if (file && fs.existsSync(file.path)) fs.unlinkSync(file.path);
     res.status(500).json({ error: err.message });
   }
 }
@@ -165,15 +122,12 @@ async function updateBook(req, res) {
   const file = req.file;
 
   if (!title?.trim()) {
-    if (file) fs.unlinkSync(file.path);
     return res.status(400).json({ error: 'title is required' });
   }
 
   try {
-    // Get existing book
     const [existing] = await pool.query('SELECT * FROM platform_books WHERE id = ?', [id]);
     if (!existing.length) {
-      if (file) fs.unlinkSync(file.path);
       return res.status(404).json({ error: 'Book not found' });
     }
 
@@ -181,24 +135,16 @@ async function updateBook(req, res) {
     let fileName = null;
     let totalPages = null;
 
-    if (file) {
-      // Parse PDF and extract metadata
-      const pdfMeta = await parsePDFMetadata(file.path);
+    if (file && file.buffer) {
+      const pdfMeta = await parsePDFMetadata(file.buffer);
       if (!pdfMeta.success) {
-        fs.unlinkSync(file.path);
         return res.status(400).json({ error: `PDF parsing failed: ${pdfMeta.error}` });
       }
       totalPages = pdfMeta.totalPages;
-
-      // Convert to base64
-      fileData = fileToBase64(file.path);
+      fileData = bufferToBase64(file.buffer);
       fileName = file.originalname;
-
-      // Clean up temp file
-      fs.unlinkSync(file.path);
     }
 
-    // Update database
     await pool.query(
       `UPDATE platform_books 
        SET title = ?,
@@ -225,7 +171,6 @@ async function updateBook(req, res) {
     const [rows] = await pool.query('SELECT * FROM platform_books WHERE id = ?', [id]);
     res.json(rows[0]);
   } catch (err) {
-    if (file && fs.existsSync(file.path)) fs.unlinkSync(file.path);
     res.status(500).json({ error: err.message });
   }
 }
