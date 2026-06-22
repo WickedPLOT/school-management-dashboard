@@ -7,12 +7,23 @@ app.use(cors({ origin: true, credentials: true }));
 app.use(express.json({ limit: '35mb' }));
 
 const authRoutes = require('./src/routes/auth');
-app.use('/api/auth', authRoutes);
-app.use('/auth', authRoutes);
-app.use('/api/admin', require('./src/routes/admin'));
-app.use('/api/student', require('./src/routes/student'));
-app.use('/api/profile', require('./src/routes/profile'));
-app.use('/api/payments', require('./src/routes/payments'));
+const adminRoutes = require('./src/routes/admin');
+const studentRoutes = require('./src/routes/student');
+const profileRoutes = require('./src/routes/profile');
+const paymentsRoutes = require('./src/routes/payments');
+
+const apiRoutes = [
+  ['/auth', authRoutes],
+  ['/admin', adminRoutes],
+  ['/student', studentRoutes],
+  ['/profile', profileRoutes],
+  ['/payments', paymentsRoutes],
+];
+
+for (const [path, router] of apiRoutes) {
+  app.use('/api' + path, router);
+  app.use(path, router);
+}
 
 app.get('/api/health', (_, res) => res.json({ ok: true }));
 app.get('/health', (_, res) => res.json({ ok: true }));
