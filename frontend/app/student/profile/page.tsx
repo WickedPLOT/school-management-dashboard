@@ -225,7 +225,7 @@ export default function StudentProfilePage() {
       apiFetch('/profile/room').catch(() => null),
       apiFetch('/profile/quran-assignments').catch(() => []),
       apiFetch('/profile/attendance').catch(() => ({})),
-      fetch(`${process.env.NEXT_PUBLIC_API_URL || 'http://localhost:5000/api'}/admin/settings/public`).then((res) => res.json()).catch(() => null),
+      apiFetch('/admin/settings/public').catch(() => null),
     ]).then(([data, dashboardData, updateData, roomData, quranData, attendancePayload, publicSettings]) => {
       if (data) {
         const documentFields = Array.isArray(data.documents) ? data.documents.reduce((acc: Record<string, string>, doc: any) => {

@@ -183,8 +183,7 @@ export default function RegisterForm() {
   const [branding, setBranding] = useState<{ centre_name?: string; platform_label?: string; approval_required?: boolean }>({});
 
   useEffect(() => {
-    fetch(`${process.env.NEXT_PUBLIC_API_URL || 'http://localhost:5000/api'}/admin/settings/public`)
-      .then((res) => res.json())
+    apiFetch('/admin/settings/public')
       .then(setBranding)
       .catch(() => {});
   }, []);
