@@ -226,15 +226,15 @@ async function getAudienceSummary(req) {
   const { clause, params } = sectionFilter(req);
   const [rows] = await pool.query(
     `SELECT
-     COUNT(*) FILTER (WHERE u.role='student' AND u.status='approved') AS total_students,
-     COUNT(*) FILTER (WHERE u.role='student' AND u.status='approved' AND COALESCE(NULLIF(p.phone, ''), '') <> '') AS sms_students,
-     COUNT(*) FILTER (WHERE u.role='student' AND u.status='approved' AND COALESCE(NULLIF(u.email, ''), '') <> '') AS email_students,
-      COUNT(*) FILTER (WHERE u.role='student' AND u.status='approved' AND COALESCE(NULLIF(g.parent_phone, ''), '') <> '') AS sms_parents,
-      COUNT(*) FILTER (WHERE u.role='student' AND u.status='approved' AND COALESCE(NULLIF(g.parent_email, ''), '') <> '') AS email_parents
-     FROM users u
-     LEFT JOIN profiles p ON p.user_id=u.id
-     LEFT JOIN guardian_contacts g ON g.user_id=u.id
-     WHERE u.role='student'${clause}`,
+     SUM(CASE WHEN u.role='student' AND u.status='approved' THEN 1 ELSE 0 END) AS total_students,
+     SUM(CASE WHEN u.role='student' AND u.status='approved' AND p.phone IS NOT NULL AND p.phone != '' THEN 1 ELSE 0 END) AS sms_students,
+     SUM(CASE WHEN u.role='student' AND u.status='approved' AND u.email IS NOT NULL AND u.email != '' THEN 1 ELSE 0 END) AS email_students,
+       SUM(CASE WHEN u.role='student' AND u.status='approved' AND g.parent_phone IS NOT NULL AND g.parent_phone != '' THEN 1 ELSE 0 END) AS sms_parents,
+       SUM(CASE WHEN u.role='student' AND u.status='approved' AND g.parent_email IS NOT NULL AND g.parent_email != '' THEN 1 ELSE 0 END) AS email_parents
+      FROM users u
+      LEFT JOIN profiles p ON p.user_id=u.id
+      LEFT JOIN guardian_contacts g ON g.user_id=u.id
+      WHERE u.role='student'${clause}`,
     params
   );
   return rows[0];
@@ -390,7 +390,7 @@ async function sendBroadcast(req, payload) {
      LEFT JOIN profiles p ON p.user_id = u.id
      LEFT JOIN guardian_contacts g ON g.user_id = u.id
      WHERE u.role='student' AND u.status='approved'${clause}
-     ORDER BY p.full_name ASC NULLS LAST, u.id ASC`,
+      ORDER BY p.full_name IS NULL ASC, p.full_name ASC, u.id ASC`,
     params
   );
 
