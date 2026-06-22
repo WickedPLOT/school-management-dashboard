@@ -7,9 +7,13 @@ const { notifyStudentsAboutNewBook } = require('../services/notificationService'
 // Temporary upload directory
 const UPLOAD_DIR = path.join(__dirname, '../../uploads/books');
 
-// Ensure upload directory exists
-if (!fs.existsSync(UPLOAD_DIR)) {
-  fs.mkdirSync(UPLOAD_DIR, { recursive: true });
+// Ensure upload directory exists (may fail on read-only filesystems like Vercel)
+try {
+  if (!fs.existsSync(UPLOAD_DIR)) {
+    fs.mkdirSync(UPLOAD_DIR, { recursive: true });
+  }
+} catch (e) {
+  // Silently fail - cloud storage will be needed for production
 }
 
 function adminSectionFilter(req, alias = 'pb') {
@@ -295,7 +299,7 @@ async function getBookStudentProgress(req, res) {
        LEFT JOIN profiles p ON p.user_id = u.id
        LEFT JOIN book_progress bp ON bp.book_id = ? AND bp.user_id = u.id
        WHERE u.role = 'student' AND u.status = 'approved' ${filterClause}
-       ORDER BY p.full_name ASC NULLS LAST`,
+       ORDER BY p.full_name IS NULL ASC, p.full_name ASC`,
       params.length ? [id, ...params] : [id]
     );
     res.json({ book: book[0], students: rows });
@@ -323,7 +327,7 @@ async function getAllStudentsBookProgress(req, res) {
        LEFT JOIN platform_books pb ON pb.id = bp.book_id
        WHERE u.role = 'student' AND u.status = 'approved' ${clause}
        GROUP BY u.id, u.email, u.section, p.full_name
-       ORDER BY p.full_name ASC NULLS LAST`,
+        ORDER BY p.full_name IS NULL ASC, p.full_name ASC`,
       params
     );
     res.json(rows);
