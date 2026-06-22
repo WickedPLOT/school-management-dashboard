@@ -14,7 +14,7 @@ if (!fs.existsSync(UPLOAD_DIR)) {
 
 function adminSectionFilter(req, alias = 'pb') {
   if (req.user.role === 'super_admin') return { clause: '', params: [] };
-  return { clause: ` AND ${alias}.section_scope IN ('all', $1)`, params: [req.user.section] };
+  return { clause: ` AND ${alias}.section_scope IN ('all', ?)`, params: [req.user.section] };
 }
 
 /**
@@ -61,10 +61,10 @@ function base64ToFile(base64Data, outputPath) {
 async function listBooks(req, res) {
   try {
     const { clause, params } = adminSectionFilter(req, 'pb');
-    const result = await pool.query(
+    const [rows] = await pool.query(
       `SELECT pb.*, u.email AS created_by_email,
               COUNT(bp.id) AS student_count,
-              COALESCE(ROUND(AVG(CASE WHEN pb.total_pages > 0 THEN bp.pages_read::numeric / pb.total_pages * 100 ELSE 0 END), 1), 0) AS avg_progress
+              COALESCE(ROUND(AVG(CASE WHEN pb.total_pages > 0 THEN bp.pages_read / pb.total_pages * 100 ELSE 0 END), 1), 0) AS avg_progress
        FROM platform_books pb
        LEFT JOIN users u ON u.id = pb.created_by
        LEFT JOIN book_progress bp ON bp.book_id = pb.id
@@ -73,7 +73,7 @@ async function listBooks(req, res) {
        ORDER BY pb.created_at DESC`,
       params
     );
-    res.json(result.rows);
+    res.json(rows);
   } catch (err) {
     res.status(500).json({ error: err.message });
   }
@@ -120,10 +120,9 @@ async function createBook(req, res) {
     }
 
     // Store in database
-    const result = await pool.query(
+    const [insertResult] = await pool.query(
       `INSERT INTO platform_books (title, description, file_name, file_data, total_pages, section_scope, is_published, created_by)
-       VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
-       RETURNING *`,
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
       [
         title.trim(),
         description?.trim() || null,
@@ -136,7 +135,8 @@ async function createBook(req, res) {
       ]
     );
 
-    const book = result.rows[0];
+    const [rows] = await pool.query('SELECT * FROM platform_books WHERE id = ?', [insertResult.insertId]);
+    const book = rows[0];
 
     // Notify students about new book (async)
     if (book.is_published) {
@@ -167,8 +167,8 @@ async function updateBook(req, res) {
 
   try {
     // Get existing book
-    const existing = await pool.query('SELECT * FROM platform_books WHERE id = $1', [id]);
-    if (!existing.rows.length) {
+    const [existing] = await pool.query('SELECT * FROM platform_books WHERE id = ?', [id]);
+    if (!existing.length) {
       if (file) fs.unlinkSync(file.path);
       return res.status(404).json({ error: 'Book not found' });
     }
@@ -195,18 +195,17 @@ async function updateBook(req, res) {
     }
 
     // Update database
-    const result = await pool.query(
+    await pool.query(
       `UPDATE platform_books 
-       SET title = $1,
-           description = $2,
-           file_name = COALESCE($3, file_name),
-           file_data = COALESCE($4, file_data),
-           total_pages = COALESCE($5, total_pages),
-           section_scope = $6,
-           is_published = $7,
+       SET title = ?,
+           description = ?,
+           file_name = COALESCE(?, file_name),
+           file_data = COALESCE(?, file_data),
+           total_pages = COALESCE(?, total_pages),
+           section_scope = ?,
+           is_published = ?,
            updated_at = NOW()
-       WHERE id = $8
-       RETURNING *`,
+       WHERE id = ?`,
       [
         title.trim(),
         description?.trim() || null,
@@ -219,7 +218,8 @@ async function updateBook(req, res) {
       ]
     );
 
-    res.json(result.rows[0]);
+    const [rows] = await pool.query('SELECT * FROM platform_books WHERE id = ?', [id]);
+    res.json(rows[0]);
   } catch (err) {
     if (file && fs.existsSync(file.path)) fs.unlinkSync(file.path);
     res.status(500).json({ error: err.message });
@@ -232,7 +232,7 @@ async function updateBook(req, res) {
 async function deleteBook(req, res) {
   const { id } = req.params;
   try {
-    await pool.query('DELETE FROM platform_books WHERE id = $1', [id]);
+    await pool.query('DELETE FROM platform_books WHERE id = ?', [id]);
     res.json({ message: 'Book deleted' });
   } catch (err) {
     res.status(500).json({ error: err.message });
@@ -245,16 +245,16 @@ async function deleteBook(req, res) {
 async function downloadBook(req, res) {
   const { id } = req.params;
   try {
-    const book = await pool.query(
-      'SELECT * FROM platform_books WHERE id = $1 AND is_published = TRUE',
+    const [rows] = await pool.query(
+      'SELECT * FROM platform_books WHERE id = ? AND is_published = TRUE',
       [id]
     );
 
-    if (!book.rows.length) {
+    if (!rows.length) {
       return res.status(404).json({ error: 'Book not found' });
     }
 
-    const bookData = book.rows[0];
+    const bookData = rows[0];
     if (!bookData.file_data) {
       return res.status(404).json({ error: 'Book file not available' });
     }
@@ -282,23 +282,23 @@ async function getBookStudentProgress(req, res) {
   const { id } = req.params;
   const { clause, params } = adminSectionFilter(req, 'u');
   try {
-    const book = await pool.query('SELECT * FROM platform_books WHERE id = $1', [id]);
-    if (!book.rows.length) return res.status(404).json({ error: 'Book not found' });
+    const [book] = await pool.query('SELECT * FROM platform_books WHERE id = ?', [id]);
+    if (!book.length) return res.status(404).json({ error: 'Book not found' });
 
-    const filterClause = params.length ? clause.replace('$1', `$2`) : '';
-    const result = await pool.query(
+    const filterClause = params.length ? clause : '';
+    const [rows] = await pool.query(
       `SELECT u.id, u.email, u.section, p.full_name,
               COALESCE(bp.pages_read, 0) AS pages_read,
               COALESCE(bp.status, 'not_started') AS status,
               bp.notes, bp.updated_at
        FROM users u
        LEFT JOIN profiles p ON p.user_id = u.id
-       LEFT JOIN book_progress bp ON bp.book_id = $1 AND bp.user_id = u.id
+       LEFT JOIN book_progress bp ON bp.book_id = ? AND bp.user_id = u.id
        WHERE u.role = 'student' AND u.status = 'approved' ${filterClause}
        ORDER BY p.full_name ASC NULLS LAST`,
       params.length ? [id, ...params] : [id]
     );
-    res.json({ book: book.rows[0], students: result.rows });
+    res.json({ book: book[0], students: rows });
   } catch (err) {
     res.status(500).json({ error: err.message });
   }
@@ -310,11 +310,11 @@ async function getBookStudentProgress(req, res) {
 async function getAllStudentsBookProgress(req, res) {
   const { clause, params } = adminSectionFilter(req);
   try {
-    const result = await pool.query(
+    const [rows] = await pool.query(
       `SELECT u.id, u.email, u.section, p.full_name,
               COUNT(DISTINCT pb.id) AS total_books,
-              COUNT(DISTINCT bp.id) FILTER (WHERE bp.status = 'reading') AS books_reading,
-              COUNT(DISTINCT bp.id) FILTER (WHERE bp.status = 'completed') AS books_completed,
+              SUM(CASE WHEN bp.status = 'reading' THEN 1 ELSE 0 END) AS books_reading,
+              SUM(CASE WHEN bp.status = 'completed' THEN 1 ELSE 0 END) AS books_completed,
               COALESCE(SUM(bp.pages_read), 0) AS total_pages_read,
               COALESCE(SUM(pb.total_pages), 0) AS total_book_pages
        FROM users u
@@ -326,7 +326,7 @@ async function getAllStudentsBookProgress(req, res) {
        ORDER BY p.full_name ASC NULLS LAST`,
       params
     );
-    res.json(result.rows);
+    res.json(rows);
   } catch (err) {
     res.status(500).json({ error: err.message });
   }
@@ -338,28 +338,28 @@ async function getAllStudentsBookProgress(req, res) {
 async function getStudentBookDetail(req, res) {
   const { id } = req.params;
   try {
-    const student = await pool.query(
-      `SELECT id, email, section FROM users WHERE id = $1 AND role = 'student'`,
+    const [student] = await pool.query(
+      `SELECT id, email, section FROM users WHERE id = ? AND role = 'student'`,
       [id]
     );
-    if (!student.rows.length) return res.status(404).json({ error: 'Student not found' });
+    if (!student.length) return res.status(404).json({ error: 'Student not found' });
 
-    if (req.user.role !== 'super_admin' && student.rows[0].section !== req.user.section) {
+    if (req.user.role !== 'super_admin' && student[0].section !== req.user.section) {
       return res.status(403).json({ error: 'Forbidden' });
     }
 
-    const books = await pool.query(
+    const [books] = await pool.query(
       `SELECT pb.id, pb.title, pb.total_pages, pb.file_name,
               COALESCE(bp.pages_read, 0) AS pages_read,
               COALESCE(bp.status, 'not_started') AS status,
               bp.notes, bp.updated_at
        FROM platform_books pb
-       LEFT JOIN book_progress bp ON bp.book_id = pb.id AND bp.user_id = $1
-       WHERE pb.is_published = TRUE AND pb.section_scope IN ('all', $2)
+       LEFT JOIN book_progress bp ON bp.book_id = pb.id AND bp.user_id = ?
+       WHERE pb.is_published = TRUE AND pb.section_scope IN ('all', ?)
        ORDER BY pb.title ASC`,
-      [id, student.rows[0].section]
+      [id, student[0].section]
     );
-    res.json({ student: student.rows[0], books: books.rows });
+    res.json({ student: student[0], books });
   } catch (err) {
     res.status(500).json({ error: err.message });
   }
@@ -370,7 +370,7 @@ async function getStudentBookDetail(req, res) {
  */
 async function listMyBooks(req, res) {
   try {
-    const result = await pool.query(
+    const [rows] = await pool.query(
       `SELECT pb.id, pb.title, pb.description, pb.total_pages, pb.section_scope,
               pb.file_name, pb.file_data,
               COALESCE(bp.pages_read, 0) AS pages_read,
@@ -378,12 +378,12 @@ async function listMyBooks(req, res) {
               bp.notes, bp.updated_at AS progress_updated_at,
               pb.created_at
        FROM platform_books pb
-       LEFT JOIN book_progress bp ON bp.book_id = pb.id AND bp.user_id = $1
-       WHERE pb.is_published = TRUE AND pb.section_scope IN ('all', $2)
+       LEFT JOIN book_progress bp ON bp.book_id = pb.id AND bp.user_id = ?
+       WHERE pb.is_published = TRUE AND pb.section_scope IN ('all', ?)
        ORDER BY pb.created_at DESC`,
       [req.user.id, req.user.section]
     );
-    res.json(result.rows);
+    res.json(rows);
   } catch (err) {
     res.status(500).json({ error: err.message });
   }
@@ -401,30 +401,34 @@ async function updateMyBookProgress(req, res) {
     return res.status(400).json({ error: 'Invalid status' });
 
   try {
-    const book = await pool.query(
-      `SELECT id, total_pages FROM platform_books WHERE id = $1 AND is_published = TRUE AND section_scope IN ('all', $2)`,
+    const [book] = await pool.query(
+      `SELECT id, total_pages FROM platform_books WHERE id = ? AND is_published = TRUE AND section_scope IN ('all', ?)`,
       [book_id, req.user.section]
     );
-    if (!book.rows.length) return res.status(404).json({ error: 'Book not found' });
+    if (!book.length) return res.status(404).json({ error: 'Book not found' });
 
-    const maxPages = book.rows[0].total_pages || 0;
+    const maxPages = book[0].total_pages || 0;
     const safePages = Math.min(Math.max(parseInt(pages_read) || 0, 0), maxPages > 0 ? maxPages : 999999);
 
     let computedStatus = status || 'reading';
     if (maxPages > 0 && safePages >= maxPages) computedStatus = 'completed';
 
-    const result = await pool.query(
+    await pool.query(
       `INSERT INTO book_progress (book_id, user_id, pages_read, status, notes, updated_at)
-       VALUES ($1, $2, $3, $4, $5, NOW())
-       ON CONFLICT (book_id, user_id) DO UPDATE SET
-         pages_read = EXCLUDED.pages_read,
-         status = EXCLUDED.status,
-         notes = EXCLUDED.notes,
-         updated_at = NOW()
-       RETURNING *`,
+       VALUES (?, ?, ?, ?, ?, NOW())
+       ON DUPLICATE KEY UPDATE
+         pages_read = VALUES(pages_read),
+         status = VALUES(status),
+         notes = VALUES(notes),
+         updated_at = NOW()`,
       [book_id, req.user.id, safePages, computedStatus, notes?.trim() || null]
     );
-    res.json(result.rows[0]);
+
+    const [rows] = await pool.query(
+      'SELECT * FROM book_progress WHERE book_id = ? AND user_id = ?',
+      [book_id, req.user.id]
+    );
+    res.json(rows[0]);
   } catch (err) {
     res.status(500).json({ error: err.message });
   }

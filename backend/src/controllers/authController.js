@@ -9,18 +9,18 @@ const DOCUMENT_TYPES = ['passport_document', 'id_front', 'id_back'];
 
 async function ensureStudentDocumentsTable(clientOrPool = pool) {
   await clientOrPool.query(`CREATE TABLE IF NOT EXISTS student_documents (
-    id SERIAL PRIMARY KEY,
-    user_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+    id INT AUTO_INCREMENT PRIMARY KEY,
+    user_id INT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
     document_type VARCHAR(50) NOT NULL,
     file_name VARCHAR(255),
     mime_type VARCHAR(120),
     file_data TEXT,
     review_status VARCHAR(30) NOT NULL DEFAULT 'submitted' CHECK (review_status IN ('submitted','approved','rejected')),
     review_note TEXT,
-    reviewed_by INTEGER REFERENCES users(id) ON DELETE SET NULL,
-    reviewed_at TIMESTAMPTZ,
-    created_at TIMESTAMPTZ DEFAULT NOW(),
-    updated_at TIMESTAMPTZ DEFAULT NOW(),
+    reviewed_by INT REFERENCES users(id) ON DELETE SET NULL,
+    reviewed_at TIMESTAMP NULL,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
     UNIQUE(user_id, document_type)
   )`);
 }
@@ -45,11 +45,11 @@ async function saveStudentDocuments(client, userId, body = {}) {
   for (const doc of docs) {
     await client.query(
       `INSERT INTO student_documents (user_id, document_type, file_name, mime_type, file_data, updated_at)
-       VALUES ($1,$2,$3,$4,$5,NOW())
-       ON CONFLICT (user_id, document_type) DO UPDATE SET
-         file_name=EXCLUDED.file_name,
-         mime_type=EXCLUDED.mime_type,
-         file_data=EXCLUDED.file_data,
+       VALUES (?,?,?,?,?,NOW())
+       ON DUPLICATE KEY UPDATE
+         file_name=VALUES(file_name),
+         mime_type=VALUES(mime_type),
+         file_data=VALUES(file_data),
          review_status='submitted',
          review_note=NULL,
          reviewed_by=NULL,
@@ -62,14 +62,14 @@ async function saveStudentDocuments(client, userId, body = {}) {
 
 async function listStudentDocuments(userId) {
   await ensureStudentDocumentsTable(pool);
-  const result = await pool.query(
+  const [rows] = await pool.query(
     `SELECT id, document_type, file_name, mime_type, file_data, review_status, review_note, reviewed_at, created_at, updated_at
      FROM student_documents
-     WHERE user_id=$1
+     WHERE user_id=?
      ORDER BY document_type ASC`,
     [userId]
   );
-  return result.rows;
+  return rows;
 }
 
 // POST /api/auth/register  (invite token optional)
@@ -99,61 +99,61 @@ async function register(req, res) {
   if (!regDocs.length)
     return res.status(400).json({ error: 'At least one verification document is required — upload your Passport or both ID sides' });
 
-  const client = await pool.connect();
+  const client = await pool.getConnection();
   try {
-    await client.query('BEGIN');
+    await client.query('START TRANSACTION');
     const appSettings = await getAppSettings();
 
     // Validate invite token only when a registration link was used.
     if (invite_token) {
-      const inv = await client.query(
-        "SELECT * FROM invite_tokens WHERE token=$1 AND used=FALSE AND expires_at > NOW()",
+      const [invRows] = await client.query(
+        "SELECT * FROM invite_tokens WHERE token=? AND used=FALSE AND expires_at > NOW()",
         [invite_token]
       );
-      if (!inv.rows.length) {
+      if (!invRows.length) {
         await client.query('ROLLBACK');
         return res.status(400).json({ error: 'Invalid or expired invite link' });
       }
     }
 
     // Check email uniqueness
-    const exists = await client.query('SELECT id FROM users WHERE email=$1', [email]);
-    if (exists.rows.length) return res.status(409).json({ error: 'Email already registered' });
+    const [exists] = await client.query('SELECT id FROM users WHERE email=?', [email]);
+    if (exists.length) return res.status(409).json({ error: 'Email already registered' });
 
     // Gender determines section
     const section = gender === 'male' ? 'brothers' : 'sisters';
     const password_hash = await bcrypt.hash(password, 10);
 
-    const userResult = await client.query(
-      'INSERT INTO users (email, password_hash, role, section, status) VALUES ($1,$2,$3,$4,$5) RETURNING id',
+    const [userInsert] = await client.query(
+      'INSERT INTO users (email, password_hash, role, section, status) VALUES (?,?,?,?,?)',
       [email, password_hash, 'student', section, appSettings.approval_required ? 'pending' : 'approved']
     );
-    const userId = userResult.rows[0].id;
+    const userId = userInsert.insertId;
 
     await client.query(
       `INSERT INTO profiles (user_id, full_name, phone, gender, institution, course, year_of_study, quran_level, home_county)
-       VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9)`,
+       VALUES (?,?,?,?,?,?,?,?,?)`,
       [userId, full_name, phone, gender, institution, course, year_of_study || null, quran_level, home_county]
     );
 
     await client.query(
       `INSERT INTO student_profile_extensions (user_id, nationality, country, county, sub_county, passport_photo_data, entry_date, updated_at)
-       VALUES ($1,$2,$3,$4,$5,$6,$7,NOW())
-       ON CONFLICT (user_id) DO UPDATE SET
-         nationality=EXCLUDED.nationality, country=EXCLUDED.country, county=EXCLUDED.county,
-         sub_county=EXCLUDED.sub_county, passport_photo_data=EXCLUDED.passport_photo_data,
-         entry_date=EXCLUDED.entry_date, updated_at=NOW()`,
+       VALUES (?,?,?,?,?,?,?,NOW())
+       ON DUPLICATE KEY UPDATE
+         nationality=VALUES(nationality), country=VALUES(country), county=VALUES(county),
+         sub_county=VALUES(sub_county), passport_photo_data=VALUES(passport_photo_data),
+         entry_date=VALUES(entry_date), updated_at=NOW()`,
       [userId, nationality, country, county, sub_county, passport_photo_data, entry_date || null]
     );
 
     await client.query(
       `INSERT INTO guardian_contacts (user_id, parent_name, parent_phone, parent_email, alt_student_phone, alt_parent_phone, emergency_contact_1_name, emergency_contact_1_phone, emergency_contact_1_relation, emergency_contact_2_name, emergency_contact_2_phone, emergency_contact_2_relation, updated_at)
-       VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,NOW())
-       ON CONFLICT (user_id) DO UPDATE SET
-         parent_name=EXCLUDED.parent_name, parent_phone=EXCLUDED.parent_phone, parent_email=EXCLUDED.parent_email,
-         alt_student_phone=EXCLUDED.alt_student_phone, alt_parent_phone=EXCLUDED.alt_parent_phone,
-         emergency_contact_1_name=EXCLUDED.emergency_contact_1_name, emergency_contact_1_phone=EXCLUDED.emergency_contact_1_phone, emergency_contact_1_relation=EXCLUDED.emergency_contact_1_relation,
-         emergency_contact_2_name=EXCLUDED.emergency_contact_2_name, emergency_contact_2_phone=EXCLUDED.emergency_contact_2_phone, emergency_contact_2_relation=EXCLUDED.emergency_contact_2_relation, updated_at=NOW()`,
+       VALUES (?,?,?,?,?,?,?,?,?,?,?,?,NOW())
+       ON DUPLICATE KEY UPDATE
+         parent_name=VALUES(parent_name), parent_phone=VALUES(parent_phone), parent_email=VALUES(parent_email),
+         alt_student_phone=VALUES(alt_student_phone), alt_parent_phone=VALUES(alt_parent_phone),
+         emergency_contact_1_name=VALUES(emergency_contact_1_name), emergency_contact_1_phone=VALUES(emergency_contact_1_phone), emergency_contact_1_relation=VALUES(emergency_contact_1_relation),
+         emergency_contact_2_name=VALUES(emergency_contact_2_name), emergency_contact_2_phone=VALUES(emergency_contact_2_phone), emergency_contact_2_relation=VALUES(emergency_contact_2_relation), updated_at=NOW()`,
       [userId, parent_name, parent_phone, parent_email, alt_student_phone, alt_parent_phone, emergency_contact_1_name, emergency_contact_1_phone, emergency_contact_1_relation, emergency_contact_2_name, emergency_contact_2_phone, emergency_contact_2_relation]
     );
 
@@ -161,7 +161,7 @@ async function register(req, res) {
 
     // Mark token as used when registration came from an invite link.
     if (invite_token) {
-      await client.query('UPDATE invite_tokens SET used=TRUE WHERE token=$1', [invite_token]);
+      await client.query('UPDATE invite_tokens SET used=TRUE WHERE token=?', [invite_token]);
     }
 
     await client.query('COMMIT');
@@ -185,8 +185,8 @@ async function login(req, res) {
   if (!email || !password) return res.status(400).json({ error: 'email and password required' });
 
   try {
-    const result = await pool.query('SELECT * FROM users WHERE email=$1', [email]);
-    const user = result.rows[0];
+    const [rows] = await pool.query('SELECT * FROM users WHERE email=?', [email]);
+    const user = rows[0];
     if (!user) return res.status(401).json({ error: 'Invalid credentials' });
     if (user.status === 'pending')  return res.status(403).json({ error: 'Account pending approval' });
     if (user.status === 'rejected') return res.status(403).json({ error: 'Account rejected' });
@@ -210,11 +210,11 @@ async function validateInvite(req, res) {
   const { token } = req.query;
   if (!token) return res.status(400).json({ error: 'Token required' });
   try {
-    const result = await pool.query(
-      "SELECT id FROM invite_tokens WHERE token=$1 AND used=FALSE AND expires_at > NOW()",
+    const [rows] = await pool.query(
+      "SELECT id FROM invite_tokens WHERE token=? AND used=FALSE AND expires_at > NOW()",
       [token]
     );
-    if (!result.rows.length) return res.status(400).json({ valid: false, error: 'Invalid or expired invite link' });
+    if (!rows.length) return res.status(400).json({ valid: false, error: 'Invalid or expired invite link' });
     res.json({ valid: true });
   } catch (err) {
     res.status(500).json({ error: err.message });

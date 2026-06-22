@@ -20,41 +20,45 @@ const FLOOR_TEMPLATES = [
 ];
 
 async function ensureSectionFloorPlan(sectionScope) {
-  const client = await pool.connect();
+  const client = await pool.getConnection();
   try {
     await client.query('BEGIN');
 
     for (const floor of FLOOR_TEMPLATES) {
-      let buildingResult = await client.query(
+      const [buildingRows] = await client.query(
         `SELECT id FROM accommodation_buildings
-         WHERE section_scope = $1 AND name = $2
+         WHERE section_scope = ? AND name = ?
          LIMIT 1`,
         [sectionScope, floor.name]
       );
 
-      if (!buildingResult.rows.length) {
-        buildingResult = await client.query(
+      if (!buildingRows.length) {
+        const [insertResult] = await client.query(
           `INSERT INTO accommodation_buildings (name, section_scope, manager_name)
-           VALUES ($1,$2,$3)
-           RETURNING id`,
+           VALUES (?,?,?)`,
           [floor.name, sectionScope, null]
         );
+        const [newRows] = await client.query(
+          'SELECT id FROM accommodation_buildings WHERE id = ?',
+          [insertResult.insertId]
+        );
+        buildingRows = newRows;
       }
 
-      const buildingId = buildingResult.rows[0].id;
+      const buildingId = buildingRows[0].id;
 
       for (const room of floor.rooms) {
-        const roomExists = await client.query(
+        const [roomExistsRows] = await client.query(
           `SELECT id FROM accommodation_rooms
-           WHERE building_id = $1 AND name = $2
+           WHERE building_id = ? AND name = ?
            LIMIT 1`,
           [buildingId, room.name]
         );
 
-        if (!roomExists.rows.length) {
+        if (!roomExistsRows.length) {
           await client.query(
             `INSERT INTO accommodation_rooms (building_id, name, capacity)
-             VALUES ($1,$2,$3)`,
+             VALUES (?,?,?)`,
             [buildingId, room.name, room.capacity]
           );
         }
@@ -72,7 +76,7 @@ async function ensureSectionFloorPlan(sectionScope) {
 
 function sectionWhere(req, alias = 'b') {
   if (req.user.role === 'super_admin') return { clause: '', params: [] };
-  return { clause: ` WHERE ${alias}.section_scope = $1`, params: [req.user.section] };
+  return { clause: ` WHERE ${alias}.section_scope = ?`, params: [req.user.section] };
 }
 
 async function listOverview(req, res) {
@@ -87,7 +91,7 @@ async function listOverview(req, res) {
 
     const floorFilter = `${clause ? 'AND' : 'WHERE'} b.name IN ('Ground Floor', '1st Floor')`;
 
-    const buildingsResult = await pool.query(
+    const [buildingsRows] = await pool.query(
       `SELECT b.*
        FROM accommodation_buildings b
        ${clause}
@@ -101,7 +105,7 @@ async function listOverview(req, res) {
       params
     );
 
-    const roomsResult = await pool.query(
+    const [roomsRows] = await pool.query(
       `SELECT r.id, r.building_id, r.name, r.capacity,
               COUNT(ra.user_id) AS occupied
        FROM accommodation_rooms r
@@ -120,7 +124,7 @@ async function listOverview(req, res) {
       params
     );
 
-    const residentsResult = await pool.query(
+    const [residentsRows] = await pool.query(
       `SELECT ra.room_id, u.id, u.email, p.full_name
        FROM room_assignments ra
        JOIN users u ON u.id = ra.user_id
@@ -129,31 +133,31 @@ async function listOverview(req, res) {
        JOIN accommodation_buildings b ON b.id = r.building_id
        ${clause.replace('b.', 'b.')}
        ${floorFilter}
-       ORDER BY p.full_name ASC NULLS LAST, u.email ASC`,
+       ORDER BY ISNULL(p.full_name), p.full_name ASC, u.email ASC`,
       params
     );
 
-    const unassignedResult = await pool.query(
+    const [unassignedRows] = await pool.query(
       `SELECT u.id, u.email, u.section, p.full_name, p.institution, p.course
        FROM users u
        LEFT JOIN profiles p ON p.user_id = u.id
        LEFT JOIN room_assignments ra ON ra.user_id = u.id
        WHERE u.role='student' AND u.status='approved'
-         ${req.user.role === 'super_admin' ? '' : 'AND u.section = $1'}
+         ${req.user.role === 'super_admin' ? '' : 'AND u.section = ?'}
          AND ra.id IS NULL
-       ORDER BY p.full_name ASC NULLS LAST, u.email ASC`,
+       ORDER BY ISNULL(p.full_name), p.full_name ASC, u.email ASC`,
       req.user.role === 'super_admin' ? [] : [req.user.section]
     );
 
     const residentsByRoom = new Map();
-    for (const resident of residentsResult.rows) {
+    for (const resident of residentsRows) {
       const current = residentsByRoom.get(resident.room_id) || [];
       current.push(resident);
       residentsByRoom.set(resident.room_id, current);
     }
 
     const roomsByBuilding = new Map();
-    for (const room of roomsResult.rows) {
+    for (const room of roomsRows) {
       const current = roomsByBuilding.get(room.building_id) || [];
       const occupied = Number(room.occupied);
       current.push({
@@ -165,10 +169,10 @@ async function listOverview(req, res) {
       roomsByBuilding.set(room.building_id, current);
     }
 
-    const response = buildingsResult.rows.map((building) => ({
+    const response = buildingsRows.map((building) => ({
       ...building,
       rooms: roomsByBuilding.get(building.id) || [],
-      unassigned: unassignedResult.rows.filter((student) => building.section_scope === student.section),
+      unassigned: unassignedRows.filter((student) => building.section_scope === student.section),
     }));
 
     res.json(response);
@@ -186,13 +190,13 @@ async function createBuilding(req, res) {
     return res.status(403).json({ error: 'Forbidden' });
   }
   try {
-    const result = await pool.query(
+    const [insertResult] = await pool.query(
       `INSERT INTO accommodation_buildings (name, section_scope, manager_name)
-       VALUES ($1,$2,$3)
-       RETURNING *`,
+       VALUES (?,?,?)`,
       [name.trim(), section_scope, manager_name?.trim() || null]
     );
-    res.status(201).json(result.rows[0]);
+    const [rows] = await pool.query('SELECT * FROM accommodation_buildings WHERE id = ?', [insertResult.insertId]);
+    res.status(201).json(rows[0]);
   } catch (err) {
     res.status(500).json({ error: err.message });
   }
@@ -204,18 +208,18 @@ async function createRoom(req, res) {
     return res.status(400).json({ error: 'building_id, room name, and capacity are required' });
   }
   try {
-    const buildingResult = await pool.query('SELECT * FROM accommodation_buildings WHERE id = $1', [building_id]);
-    if (!buildingResult.rows.length) return res.status(404).json({ error: 'Building not found' });
-    if (req.user.role !== 'super_admin' && req.user.section !== buildingResult.rows[0].section_scope) {
+    const [buildingRows] = await pool.query('SELECT * FROM accommodation_buildings WHERE id = ?', [building_id]);
+    if (!buildingRows.length) return res.status(404).json({ error: 'Building not found' });
+    if (req.user.role !== 'super_admin' && req.user.section !== buildingRows[0].section_scope) {
       return res.status(403).json({ error: 'Forbidden' });
     }
-    const result = await pool.query(
+    const [insertResult] = await pool.query(
       `INSERT INTO accommodation_rooms (building_id, name, capacity)
-       VALUES ($1,$2,$3)
-       RETURNING *`,
+       VALUES (?,?,?)`,
       [building_id, name.trim(), Number(capacity)]
     );
-    res.status(201).json(result.rows[0]);
+    const [rows] = await pool.query('SELECT * FROM accommodation_rooms WHERE id = ?', [insertResult.insertId]);
+    res.status(201).json(rows[0]);
   } catch (err) {
     res.status(500).json({ error: err.message });
   }
@@ -224,24 +228,24 @@ async function createRoom(req, res) {
 async function assignStudent(req, res) {
   const { user_id, room_id } = req.body;
   if (!user_id || !room_id) return res.status(400).json({ error: 'user_id and room_id are required' });
-  const client = await pool.connect();
+  const client = await pool.getConnection();
   try {
     await client.query('BEGIN');
-    const roomResult = await client.query(
+    const [roomRows] = await client.query(
       `SELECT r.id, r.capacity, b.section_scope,
               COUNT(ra.user_id) AS occupied
        FROM accommodation_rooms r
        JOIN accommodation_buildings b ON b.id = r.building_id
        LEFT JOIN room_assignments ra ON ra.room_id = r.id
-       WHERE r.id = $1
+       WHERE r.id = ?
        GROUP BY r.id, b.section_scope`,
       [room_id]
     );
-    if (!roomResult.rows.length) {
+    if (!roomRows.length) {
       await client.query('ROLLBACK');
       return res.status(404).json({ error: 'Room not found' });
     }
-    const room = roomResult.rows[0];
+    const room = roomRows[0];
     if (req.user.role !== 'super_admin' && req.user.section !== room.section_scope) {
       await client.query('ROLLBACK');
       return res.status(403).json({ error: 'Forbidden' });
@@ -251,22 +255,25 @@ async function assignStudent(req, res) {
       return res.status(400).json({ error: 'Room is already full' });
     }
 
-    const userResult = await client.query('SELECT id, section FROM users WHERE id = $1 AND role = $2 AND status = $3', [user_id, 'student', 'approved']);
-    if (!userResult.rows.length) {
+    const [userRows] = await client.query(
+      'SELECT id, section FROM users WHERE id = ? AND role = ? AND status = ?',
+      [user_id, 'student', 'approved']
+    );
+    if (!userRows.length) {
       await client.query('ROLLBACK');
       return res.status(404).json({ error: 'Student not found' });
     }
-    if (userResult.rows[0].section !== room.section_scope) {
+    if (userRows[0].section !== room.section_scope) {
       await client.query('ROLLBACK');
       return res.status(400).json({ error: 'Student section does not match building section' });
     }
 
     await client.query(
       `INSERT INTO room_assignments (user_id, room_id, assigned_by)
-       VALUES ($1,$2,$3)
-       ON CONFLICT (user_id) DO UPDATE SET
-         room_id = EXCLUDED.room_id,
-         assigned_by = EXCLUDED.assigned_by,
+       VALUES (?,?,?)
+       ON DUPLICATE KEY UPDATE
+         room_id = VALUES(room_id),
+         assigned_by = VALUES(assigned_by),
          assigned_at = NOW()`,
       [user_id, room_id, req.user.id]
     );
@@ -283,7 +290,7 @@ async function assignStudent(req, res) {
 async function unassignStudent(req, res) {
   const { user_id } = req.params;
   try {
-    await pool.query('DELETE FROM room_assignments WHERE user_id = $1', [user_id]);
+    await pool.query('DELETE FROM room_assignments WHERE user_id = ?', [user_id]);
     res.json({ message: 'Student unassigned' });
   } catch (err) {
     res.status(500).json({ error: err.message });
@@ -293,17 +300,17 @@ async function unassignStudent(req, res) {
 async function getStudentRoom(req, res) {
   const { id } = req.params;
   try {
-    const result = await pool.query(
+    const [rows] = await pool.query(
       `SELECT u.id AS user_id, b.name AS building_name, b.section_scope, b.manager_name,
               r.id AS room_id, r.name AS room_name, r.capacity, ra.assigned_at
        FROM users u
        LEFT JOIN room_assignments ra ON ra.user_id = u.id
        LEFT JOIN accommodation_rooms r ON r.id = ra.room_id
        LEFT JOIN accommodation_buildings b ON b.id = r.building_id
-       WHERE u.id = $1`,
+       WHERE u.id = ?`,
       [id]
     );
-    res.json(result.rows[0] || null);
+    res.json(rows[0] || null);
   } catch (err) {
     res.status(500).json({ error: err.message });
   }

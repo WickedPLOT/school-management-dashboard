@@ -101,8 +101,8 @@ async function attachLiveBalance(settings) {
 }
 
 async function getCommunicationSettings() {
-  const result = await pool.query('SELECT * FROM communication_settings WHERE id=1');
-  return attachLiveBalance(result.rows[0]);
+  const [rows] = await pool.query('SELECT * FROM communication_settings WHERE id=?', [1]);
+  return attachLiveBalance(rows[0]);
 }
 
 async function updateCommunicationSettings(payload, userId) {
@@ -115,26 +115,25 @@ async function updateCommunicationSettings(payload, userId) {
 
   const updates = [];
   const values = [];
-  let position = 1;
 
   for (const field of fields) {
     if (Object.prototype.hasOwnProperty.call(payload, field)) {
-      updates.push(`${field}=$${position++}`);
+      updates.push(`${field}=?`);
       values.push(payload[field]);
     }
   }
 
-  updates.push(`updated_by=$${position++}`);
+  updates.push('updated_by=?');
   values.push(userId);
   updates.push('updated_at=NOW()');
-  values.push(1);
 
-  const result = await pool.query(
-    `UPDATE communication_settings SET ${updates.join(', ')} WHERE id=$${position} RETURNING *`,
-    values
+  await pool.query(
+    `UPDATE communication_settings SET ${updates.join(', ')} WHERE id=?`,
+    [...values, 1]
   );
 
-  return attachLiveBalance(result.rows[0]);
+  const [rows] = await pool.query('SELECT * FROM communication_settings WHERE id=?', [1]);
+  return attachLiveBalance(rows[0]);
 }
 
 function buildEmailTransport(settings) {
@@ -220,12 +219,12 @@ async function sendSms(settings, recipient, message) {
 
 function sectionFilter(req, alias = 'u') {
   if (req.user.role === 'super_admin') return { clause: '', params: [], scope: 'all' };
-  return { clause: ` AND ${alias}.section=$1`, params: [req.user.section], scope: req.user.section };
+  return { clause: ` AND ${alias}.section=?`, params: [req.user.section], scope: req.user.section };
 }
 
 async function getAudienceSummary(req) {
   const { clause, params } = sectionFilter(req);
-  const result = await pool.query(
+  const [rows] = await pool.query(
     `SELECT
      COUNT(*) FILTER (WHERE u.role='student' AND u.status='approved') AS total_students,
      COUNT(*) FILTER (WHERE u.role='student' AND u.status='approved' AND COALESCE(NULLIF(p.phone, ''), '') <> '') AS sms_students,
@@ -238,12 +237,12 @@ async function getAudienceSummary(req) {
      WHERE u.role='student'${clause}`,
     params
   );
-  return result.rows[0];
+  return rows[0];
 }
 
 async function listMessageHistory(req) {
   const { clause, params } = sectionFilter(req, 'creator');
-  const result = await pool.query(
+  const [rows] = await pool.query(
     `SELECT b.*, creator.email AS created_by_email
      FROM message_broadcasts b
      LEFT JOIN users creator ON creator.id = b.created_by
@@ -252,7 +251,7 @@ async function listMessageHistory(req) {
      LIMIT 50`,
     params
   );
-  return result.rows;
+  return rows;
 }
 
 async function sendDirectMessage(req, payload) {
@@ -270,29 +269,30 @@ async function sendDirectMessage(req, payload) {
   if ((channel === 'email' || channel === 'both') && !subject) throw new Error('Email subject is required');
 
   const { clause, params, scope } = sectionFilter(req);
-  const recipientResult = await pool.query(
+  const [rows] = await pool.query(
     `SELECT u.id AS user_id, u.email, u.section, p.full_name, p.phone, g.parent_name, g.parent_phone, g.parent_email
      FROM users u
      LEFT JOIN profiles p ON p.user_id = u.id
      LEFT JOIN guardian_contacts g ON g.user_id = u.id
-     WHERE u.role='student' AND u.status='approved' AND u.id=$${params.length + 1}${clause}`,
+     WHERE u.role='student' AND u.status='approved' AND u.id=?${clause}`,
     [recipientUserId, ...params]
   );
 
-  if (!recipientResult.rows.length) throw new Error('Recipient not found');
+  if (!rows.length) throw new Error('Recipient not found');
 
-  const row = recipientResult.rows[0];
+  const row = rows[0];
   const recipient = recipientType === 'student'
     ? { userId: row.user_id, name: row.full_name || row.email, email: row.email, phone: row.phone }
     : { userId: row.user_id, name: row.parent_name || `Parent of ${row.full_name || row.email}`, email: row.parent_email, phone: row.parent_phone };
 
   const audience = recipientType === 'student' ? 'students' : 'parents';
-  const broadcastResult = await pool.query(
+  const [insertResult] = await pool.query(
     `INSERT INTO message_broadcasts (audience, channel, section_scope, subject, message, created_by)
-     VALUES ($1,$2,$3,$4,$5,$6) RETURNING *`,
+     VALUES (?,?,?,?,?,?)`,
     [audience, channel, scope, subject, message, req.user.id]
   );
-  const broadcast = broadcastResult.rows[0];
+  const [broadcastRows] = await pool.query('SELECT * FROM message_broadcasts WHERE id=?', [insertResult.insertId]);
+  const broadcast = broadcastRows[0];
 
   let successCount = 0;
   let failureCount = 0;
@@ -326,7 +326,7 @@ async function sendDirectMessage(req, payload) {
       await pool.query(
         `INSERT INTO message_deliveries
           (broadcast_id, user_id, recipient_type, channel, provider, recipient_name, recipient_email, recipient_phone, external_id, status)
-         VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,'sent')`,
+         VALUES (?,?,?,?,?,?,?,?,?,'sent')`,
         [
           delivery.broadcast_id,
           delivery.user_id,
@@ -344,7 +344,7 @@ async function sendDirectMessage(req, payload) {
       await pool.query(
         `INSERT INTO message_deliveries
           (broadcast_id, user_id, recipient_type, channel, provider, recipient_name, recipient_email, recipient_phone, status, error_message)
-         VALUES ($1,$2,$3,$4,$5,$6,$7,$8,'failed',$9)`,
+         VALUES (?,?,?,?,?,?,?,?,'failed',?)`,
         [
           delivery.broadcast_id,
           delivery.user_id,
@@ -361,15 +361,14 @@ async function sendDirectMessage(req, payload) {
   }
 
   const status = successCount === 0 ? 'failed' : failureCount > 0 ? 'partial' : 'sent';
-  const updated = await pool.query(
+  await pool.query(
     `UPDATE message_broadcasts
-     SET recipient_count=$1, success_count=$2, failure_count=$3, status=$4
-     WHERE id=$5
-     RETURNING *`,
+     SET recipient_count=?, success_count=?, failure_count=?, status=?
+     WHERE id=?`,
     [1, successCount, failureCount, status, broadcast.id]
   );
-
-  return updated.rows[0];
+  const [updatedRows] = await pool.query('SELECT * FROM message_broadcasts WHERE id=?', [broadcast.id]);
+  return updatedRows[0];
 }
 
 async function sendBroadcast(req, payload) {
@@ -385,7 +384,7 @@ async function sendBroadcast(req, payload) {
   if ((channel === 'email' || channel === 'both') && !subject) throw new Error('Email subject is required');
 
   const { clause, params, scope } = sectionFilter(req);
-  const recipientsResult = await pool.query(
+  const [recipientsRows] = await pool.query(
     `SELECT u.id AS user_id, u.email, u.section, p.full_name, p.phone, g.parent_name, g.parent_phone, g.parent_email
      FROM users u
      LEFT JOIN profiles p ON p.user_id = u.id
@@ -396,7 +395,7 @@ async function sendBroadcast(req, payload) {
   );
 
   const recipientEntries = [];
-  for (const row of recipientsResult.rows) {
+  for (const row of recipientsRows) {
     if (audience === 'students' || audience === 'both') {
       recipientEntries.push({
         userId: row.user_id,
@@ -417,12 +416,13 @@ async function sendBroadcast(req, payload) {
     }
   }
 
-  const broadcastResult = await pool.query(
+  const [insertResult] = await pool.query(
     `INSERT INTO message_broadcasts (audience, channel, section_scope, subject, message, created_by)
-     VALUES ($1,$2,$3,$4,$5,$6) RETURNING *`,
+     VALUES (?,?,?,?,?,?)`,
     [audience, channel, scope, subject, message, req.user.id]
   );
-  const broadcast = broadcastResult.rows[0];
+  const [broadcastRows] = await pool.query('SELECT * FROM message_broadcasts WHERE id=?', [insertResult.insertId]);
+  const broadcast = broadcastRows[0];
 
   let successCount = 0;
   let failureCount = 0;
@@ -459,7 +459,7 @@ async function sendBroadcast(req, payload) {
         await pool.query(
           `INSERT INTO message_deliveries
             (broadcast_id, user_id, recipient_type, channel, provider, recipient_name, recipient_email, recipient_phone, external_id, status)
-           VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,'sent')`,
+           VALUES (?,?,?,?,?,?,?,?,?,'sent')`,
           [
             delivery.broadcast_id,
             delivery.user_id,
@@ -477,7 +477,7 @@ async function sendBroadcast(req, payload) {
         await pool.query(
           `INSERT INTO message_deliveries
             (broadcast_id, user_id, recipient_type, channel, provider, recipient_name, recipient_email, recipient_phone, status, error_message)
-           VALUES ($1,$2,$3,$4,$5,$6,$7,$8,'failed',$9)`,
+           VALUES (?,?,?,?,?,?,?,?,'failed',?)`,
           [
             delivery.broadcast_id,
             delivery.user_id,
@@ -496,15 +496,14 @@ async function sendBroadcast(req, payload) {
 
   const recipientCount = recipientEntries.length;
   const status = successCount === 0 ? 'failed' : failureCount > 0 ? 'partial' : 'sent';
-  const updated = await pool.query(
+  await pool.query(
     `UPDATE message_broadcasts
-     SET recipient_count=$1, success_count=$2, failure_count=$3, status=$4
-     WHERE id=$5
-     RETURNING *`,
+     SET recipient_count=?, success_count=?, failure_count=?, status=?
+     WHERE id=?`,
     [recipientCount, successCount, failureCount, status, broadcast.id]
   );
-
-  return updated.rows[0];
+  const [updatedRows] = await pool.query('SELECT * FROM message_broadcasts WHERE id=?', [broadcast.id]);
+  return updatedRows[0];
 }
 
 async function issueVerificationCode(email, purpose) {
@@ -514,7 +513,7 @@ async function issueVerificationCode(email, purpose) {
 
   await pool.query(
     `INSERT INTO verification_codes (email, purpose, code, expires_at)
-     VALUES ($1,$2,$3,$4)`,
+     VALUES (?,?,?,?)`,
     [email, purpose, code, expiresAt]
   );
 
@@ -530,21 +529,21 @@ async function issueVerificationCode(email, purpose) {
 }
 
 async function verifyCode(email, purpose, code) {
-  const result = await pool.query(
+  const [rows] = await pool.query(
     `SELECT * FROM verification_codes
-     WHERE email=$1 AND purpose=$2 AND code=$3 AND consumed_at IS NULL AND expires_at > NOW()
+     WHERE email=? AND purpose=? AND code=? AND consumed_at IS NULL AND expires_at > NOW()
      ORDER BY created_at DESC
      LIMIT 1`,
     [email, purpose, code]
   );
 
-  if (!result.rows.length) return false;
+  if (!rows.length) return false;
 
   await pool.query(
     `UPDATE verification_codes
      SET consumed_at=NOW()
-     WHERE id=$1`,
-    [result.rows[0].id]
+     WHERE id=?`,
+    [rows[0].id]
   );
 
   return true;

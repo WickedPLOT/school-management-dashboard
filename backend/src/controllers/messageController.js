@@ -52,7 +52,7 @@ async function getHistory(req, res) {
 
 function platformScopeFilter(req, alias = 'u') {
   if (req.user.role === 'super_admin') return { clause: '', params: [] };
-  return { clause: ` AND ${alias}.section = $1`, params: [req.user.section] };
+  return { clause: ` AND ${alias}.section = ?`, params: [req.user.section] };
 }
 
 function adminRolesSql() {
@@ -62,7 +62,7 @@ function adminRolesSql() {
 async function listPlatformRecipients(req, res) {
   const { clause, params } = platformScopeFilter(req);
   try {
-    const result = await pool.query(
+    const [rows] = await pool.query(
       `SELECT u.id, u.email, u.role, u.section, u.status, p.full_name
        FROM users u
        LEFT JOIN profiles p ON p.user_id = u.id
@@ -71,7 +71,7 @@ async function listPlatformRecipients(req, res) {
        ORDER BY CASE WHEN u.role='student' THEN 1 ELSE 0 END, u.section, COALESCE(p.full_name, u.email)`,
       params
     );
-    res.json(result.rows);
+    res.json(rows);
   } catch (err) {
     res.status(500).json({ error: err.message });
   }
@@ -86,51 +86,51 @@ async function sendPlatformMessage(req, res) {
   if (!['direct', 'broadcast'].includes(mode)) return res.status(400).json({ error: 'Invalid platform message mode' });
   if (!['students', 'admins', 'all'].includes(audience)) return res.status(400).json({ error: 'Invalid platform audience' });
 
-  const client = await pool.connect();
+  const conn = await pool.getConnection();
   try {
-    await client.query('BEGIN');
+    await conn.query('BEGIN');
     const { clause, params } = platformScopeFilter(req);
     let recipients = [];
 
     if (mode === 'direct') {
       const recipientId = Number(recipient_user_id);
       if (!recipientId) {
-        await client.query('ROLLBACK');
+        await conn.query('ROLLBACK');
         return res.status(400).json({ error: 'Recipient is required' });
       }
-      const result = await client.query(
+      const [rows] = await conn.query(
         `SELECT u.id, u.email, u.role, u.section
          FROM users u
          WHERE u.status='approved'
            AND (u.role='student' OR u.role IN (${adminRolesSql()}))
-           AND u.id = $${params.length + 1}${clause}`,
+           AND u.id = ?${clause}`,
         [...params, recipientId]
       );
-      recipients = result.rows;
+      recipients = rows;
     } else {
       const roleClause = audience === 'students'
         ? " AND u.role='student'"
         : audience === 'admins'
           ? ` AND u.role IN (${adminRolesSql()})`
           : ` AND (u.role='student' OR u.role IN (${adminRolesSql()}))`;
-      const result = await client.query(
+      const [rows] = await conn.query(
         `SELECT u.id, u.email, u.role, u.section
          FROM users u
          WHERE u.status='approved'${roleClause}${clause}`,
         params
       );
-      recipients = result.rows;
+      recipients = rows;
     }
 
     if (!recipients.length) {
-      await client.query('ROLLBACK');
+      await conn.query('ROLLBACK');
       return res.status(404).json({ error: 'No platform recipients found' });
     }
 
     for (const recipient of recipients) {
-      await client.query(
+      await conn.query(
         `INSERT INTO notifications (user_id, title, message, kind, action_url)
-         VALUES ($1,$2,$3,'platform-message',$4)`,
+         VALUES (?,?,?,'platform-message',?)`,
         [
           recipient.id,
           cleanTitle,
@@ -140,13 +140,13 @@ async function sendPlatformMessage(req, res) {
       );
     }
 
-    await client.query('COMMIT');
+    await conn.query('COMMIT');
     res.status(201).json({ status: 'sent', recipient_count: recipients.length });
   } catch (err) {
-    await client.query('ROLLBACK');
+    await conn.query('ROLLBACK');
     res.status(500).json({ error: err.message });
   } finally {
-    client.release();
+    conn.release();
   }
 }
 

@@ -15,7 +15,7 @@ async function generateSingleInvite(req, res) {
     const expiryDays = Number(settings.registration_invite_expiry_days || 7);
     const expires_at = new Date(Date.now() + expiryDays * 24 * 60 * 60 * 1000);
     await pool.query(
-      'INSERT INTO invite_tokens (token, created_by, expires_at) VALUES ($1,$2,$3)',
+      'INSERT INTO invite_tokens (token, created_by, expires_at) VALUES (?,?,?)',
       [token, req.user.id, expires_at]
     );
     const baseUrl = getFrontendBaseUrl(req);
@@ -43,7 +43,7 @@ async function generateInvite(req, res) {
       emails.map(async (email) => {
         const token = crypto.randomBytes(32).toString('hex');
         await pool.query(
-          'INSERT INTO invite_tokens (token, created_by, expires_at) VALUES ($1,$2,$3)',
+      'INSERT INTO invite_tokens (token, created_by, expires_at) VALUES (?,?,?)',
           [token, req.user.id, expires_at]
         );
         const link = `${baseUrl}/register?token=${token}`;
@@ -73,13 +73,13 @@ async function generateInvite(req, res) {
 // GET /api/admin/invites
 async function listInvites(req, res) {
   try {
-    const result = await pool.query(
+    const [rows] = await pool.query(
       `SELECT t.id, t.token, t.used, t.expires_at, t.created_at, u.email AS created_by_email
        FROM invite_tokens t
        LEFT JOIN users u ON u.id = t.created_by
        ORDER BY t.created_at DESC LIMIT 50`
     );
-    res.json(result.rows);
+    res.json(rows);
   } catch (err) {
     res.status(500).json({ error: err.message });
   }
