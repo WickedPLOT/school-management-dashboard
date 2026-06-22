@@ -2,6 +2,7 @@
 
 import { useEffect, useMemo, useState } from 'react';
 import { apiFetch } from '@/lib/api';
+import { BROTHERS_CENTER_NAME, SISTERS_CENTER_NAME } from '@/lib/centers';
 
 type Row = {
   id: number;
@@ -62,10 +63,10 @@ export default function Page() {
               Both Sections
             </button>
             <button type="button" className="btn-outline" style={{ background: sectionView === 'brothers' ? 'var(--green)' : 'white', color: sectionView === 'brothers' ? 'white' : 'var(--green)' }} onClick={() => setSectionView('brothers')}>
-              Brothers
+              {BROTHERS_CENTER_NAME}
             </button>
             <button type="button" className="btn-outline" style={{ background: sectionView === 'sisters' ? 'var(--green)' : 'white', color: sectionView === 'sisters' ? 'white' : 'var(--green)' }} onClick={() => setSectionView('sisters')}>
-              Sisters
+              {SISTERS_CENTER_NAME}
             </button>
           </div>
         ) : null}

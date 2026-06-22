@@ -4,6 +4,9 @@ import Link from 'next/link';
 import { useEffect, useMemo, useState } from 'react';
 import { useSearchParams } from 'next/navigation';
 import { apiFetch } from '@/lib/api';
+import { BROTHERS_CENTER_NAME, SISTERS_CENTER_NAME } from '@/lib/centers';
+import Modal from '@/components/Modal';
+import MoreDropdown from '@/components/MoreDropdown';
 
 type EventScope = 'brothers' | 'sisters' | 'all';
 
@@ -19,6 +22,23 @@ type EventRow = {
   late_count?: string;
   absent_count?: string;
   excused_count?: string;
+};
+
+type DayPresenter = { day_of_week: number; presenter_user_id?: string; presenter_name?: string; };
+
+type DailySchedule = {
+  id: number;
+  title: string;
+  description?: string;
+  schedule_date: string;
+  start_time?: string;
+  end_time?: string;
+  section_scope: 'brothers' | 'sisters';
+  status: 'scheduled' | 'done' | 'cancelled';
+  repeat_mode?: 'once' | 'daily' | 'weekly';
+  presenter_user_id?: number | null;
+  presenter_name?: string | null;
+  day_presenters?: DayPresenter[];
 };
 
 type EventForm = {
@@ -77,10 +97,23 @@ function toDateKey(eventDate: string) {
   return formatDateInput(new Date(eventDate));
 }
 
+function scheduleAppliesOnDate(schedule: DailySchedule, dateKey: string): boolean {
+  if (schedule.status === 'cancelled') return false;
+  const scheduleDateKey = formatDateInput(new Date(schedule.schedule_date));
+  if (schedule.repeat_mode === 'once' || !schedule.repeat_mode) return scheduleDateKey === dateKey;
+  if (schedule.repeat_mode === 'daily') return scheduleDateKey <= dateKey;
+  if (schedule.repeat_mode === 'weekly') {
+    const dayOfWeek = new Date(`${dateKey}T00:00`).getDay();
+    return (schedule.day_presenters || []).some((dp) => dp.day_of_week === dayOfWeek);
+  }
+  return false;
+}
+
 export default function Page() {
   const searchParams = useSearchParams();
   const todayKey = useMemo(() => formatDateInput(new Date()), []);
   const [events, setEvents] = useState<EventRow[]>([]);
+  const [dailySchedules, setDailySchedules] = useState<DailySchedule[]>([]);
   const [selectedDate, setSelectedDate] = useState(todayKey);
   const [currentMonth, setCurrentMonth] = useState(() => {
     const now = new Date();
@@ -94,14 +127,15 @@ export default function Page() {
   const [deletingId, setDeletingId] = useState<number | null>(null);
   const [error, setError] = useState('');
   const [success, setSuccess] = useState('');
-  const [user, setUser] = useState<{ role: string } | null>(null);
+  const [user, setUser] = useState<{ role: string; section?: 'brothers' | 'sisters' } | null>(null);
   const [sectionView, setSectionView] = useState<'all' | 'brothers' | 'sisters'>('all');
 
   function startCreate(dateKey = selectedDate) {
     setEditingId(null);
     setError('');
     setSuccess('');
-    setForm(buildDefaultForm(defaultScope, dateKey));
+    const scope = user?.role === 'super_admin' ? defaultScope : (user?.section || defaultScope) as EventScope;
+    setForm(buildDefaultForm(scope, dateKey));
   }
 
   function startEdit(event: EventRow) {
@@ -113,19 +147,25 @@ export default function Page() {
       description: event.description || '',
       location: event.location || '',
       event_date: formatDateTimeInput(event.event_date),
-      section_scope: event.section_scope,
+      section_scope: (user?.role === 'super_admin' ? event.section_scope : ((user?.section || event.section_scope) as EventScope)),
     });
   }
 
   async function load() {
     try {
-      const [eventData, settings] = await Promise.all([
+      const [eventData, settings, scheduleData] = await Promise.all([
         apiFetch('/admin/attendance/events'),
         apiFetch('/admin/settings'),
+        apiFetch('/admin/daily-schedule'),
       ]);
 
       const normalizedEvents = (eventData as EventRow[]).map(normalizeEvent);
-      const nextScope = (settings as Settings).default_event_section_scope || 'brothers';
+      setDailySchedules(scheduleData as DailySchedule[]);
+      const storedUser = typeof window !== 'undefined' ? localStorage.getItem('user') : null;
+      const parsedUser = storedUser ? JSON.parse(storedUser) : null;
+      const nextScope = parsedUser?.role === 'super_admin'
+        ? ((settings as Settings).default_event_section_scope || 'brothers')
+        : (parsedUser?.section || 'brothers');
 
       setEvents(normalizedEvents);
       setDefaultScope(nextScope);
@@ -222,6 +262,11 @@ export default function Page() {
     return events.filter((event) => event.section_scope === sectionView || event.section_scope === 'all');
   }, [events, sectionView, user?.role]);
 
+  const visibleSchedules = useMemo(() => {
+    if (user?.role !== 'super_admin' || sectionView === 'all') return dailySchedules;
+    return dailySchedules.filter((s) => s.section_scope === sectionView);
+  }, [dailySchedules, sectionView, user?.role]);
+
   const eventsByDate = useMemo(() => {
     const grouped = new Map<string, EventRow[]>();
     for (const event of visibleEvents) {
@@ -235,6 +280,10 @@ export default function Page() {
     }
     return grouped;
   }, [visibleEvents]);
+
+  const selectedSchedules = useMemo(() => {
+    return visibleSchedules.filter((s) => scheduleAppliesOnDate(s, selectedDate));
+  }, [visibleSchedules, selectedDate]);
 
   const selectedEvents = eventsByDate.get(selectedDate) || [];
   const totalMonthEvents = useMemo(() => {
@@ -254,15 +303,18 @@ export default function Page() {
       const date = new Date(startDate);
       date.setDate(startDate.getDate() + index);
       const key = formatDateInput(date);
+      const onceCount = visibleSchedules.filter(
+        (s) => s.repeat_mode === 'once' && scheduleAppliesOnDate(s, key)
+      ).length;
       return {
         key,
         date,
         isCurrentMonth: date.getMonth() === currentMonth.getMonth(),
         isToday: key === todayKey,
-        count: (eventsByDate.get(key) || []).length,
+        count: (eventsByDate.get(key) || []).length + onceCount,
       };
     });
-  }, [currentMonth, eventsByDate, todayKey]);
+  }, [currentMonth, eventsByDate, visibleSchedules, todayKey]);
 
   return (
     <div className="section-shell">
@@ -289,10 +341,10 @@ export default function Page() {
                 Both Sections
               </button>
               <button type="button" className="btn-outline" style={{ background: sectionView === 'brothers' ? 'var(--green)' : 'white', color: sectionView === 'brothers' ? 'white' : 'var(--green)' }} onClick={() => setSectionView('brothers')}>
-                Brothers
+                {BROTHERS_CENTER_NAME}
               </button>
               <button type="button" className="btn-outline" style={{ background: sectionView === 'sisters' ? 'var(--green)' : 'white', color: sectionView === 'sisters' ? 'white' : 'var(--green)' }} onClick={() => setSectionView('sisters')}>
-                Sisters
+                {SISTERS_CENTER_NAME}
               </button>
             </div>
           ) : null}
@@ -348,7 +400,7 @@ export default function Page() {
             <div className="section-outline-header">
               <div>
                 <h2>{new Date(`${selectedDate}T00:00`).toLocaleDateString('en-GB', { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' })}</h2>
-                <p>Events scheduled for the selected day.</p>
+                <p>Events & daily activities for the selected day.</p>
               </div>
               <Link href="/admin/attendance/records" className="btn-outline">
                 Attendance Summary
@@ -356,11 +408,31 @@ export default function Page() {
             </div>
 
             {loading ? (
-              <div className="empty-state"><p>Loading events...</p></div>
-            ) : selectedEvents.length === 0 ? (
-              <div className="empty-state"><p>No events scheduled for this day.</p></div>
+              <div className="empty-state"><p>Loading...</p></div>
+            ) : selectedEvents.length === 0 && selectedSchedules.length === 0 ? (
+              <div className="empty-state"><p>Nothing scheduled for this day.</p></div>
             ) : (
               <div className="event-list">
+                {selectedSchedules.map((s) => (
+                  <article key={`s-${s.id}`} className="event-card schedule-card">
+                    <div className="event-card-head">
+                      <div>
+                        <h3>{s.title}</h3>
+                        <p>{s.start_time || ''}{s.end_time ? ` - ${s.end_time}` : ''}</p>
+                      </div>
+                      <span className="badge badge-pending">{s.repeat_mode === 'daily' ? 'Daily' : s.repeat_mode === 'weekly' ? 'Weekly' : 'Once'}</span>
+                    </div>
+                    <div className="event-card-body">
+                      <p>{s.description || 'No description'}</p>
+                      <p style={{ fontSize: '0.78rem', color: 'var(--muted)' }}>{s.section_scope} · {s.presenter_name || 'No presenter'}</p>
+                    </div>
+                    <div className="event-actions">
+                      <Link href={`/admin/announcements`} className="btn-outline" style={{ width: 'auto' }}>
+                        Manage
+                      </Link>
+                    </div>
+                  </article>
+                ))}
                 {selectedEvents.map((event) => (
                   <article key={event.id} className={`event-card ${editingId === event.id ? 'active' : ''}`}>
                     <div className="event-card-head">
@@ -380,17 +452,11 @@ export default function Page() {
                       <span>Absent {event.absent_count}</span>
                       <span>Excused {event.excused_count}</span>
                     </div>
-                    <div className="event-actions">
-                      <button type="button" className="btn-outline" onClick={() => startEdit(event)}>
-                        Edit
-                      </button>
-                      <Link href={`/admin/attendance/events/${event.id}`} className="btn-outline">
-                        Register
-                      </Link>
-                      <button type="button" className="btn-danger-outline" disabled={deletingId === event.id} onClick={() => handleDelete(event.id)}>
-                        {deletingId === event.id ? 'Deleting...' : 'Delete'}
-                      </button>
-                    </div>
+                    <MoreDropdown items={[
+                      { label: 'Edit', onClick: () => startEdit(event), color: '#1a5fa8' },
+                      { label: 'Register', onClick: () => { window.location.href = `/admin/attendance/events/${event.id}`; }, color: '#0f5132' },
+                      { label: deletingId === event.id ? 'Deleting...' : 'Delete', onClick: () => handleDelete(event.id), color: '#dc2626' },
+                    ]} />
                   </article>
                 ))}
               </div>
@@ -426,11 +492,15 @@ export default function Page() {
                 </div>
                 <div className="field">
                   <label>Section Scope</label>
-                  <select value={form.section_scope} onChange={(e) => setForm((current) => ({ ...current, section_scope: e.target.value as EventScope }))}>
-                    <option value="brothers">Brothers</option>
-                    <option value="sisters">Sisters</option>
-                    <option value="all">Both Sections</option>
-                  </select>
+                  {user?.role === 'super_admin' ? (
+                    <select value={form.section_scope} onChange={(e) => setForm((current) => ({ ...current, section_scope: e.target.value as EventScope }))}>
+                      <option value="brothers">{BROTHERS_CENTER_NAME}</option>
+                      <option value="sisters">{SISTERS_CENTER_NAME}</option>
+                      <option value="all">Both Sections</option>
+                    </select>
+                  ) : (
+                    <input value={user?.section === 'sisters' ? SISTERS_CENTER_NAME : BROTHERS_CENTER_NAME} disabled />
+                  )}
                 </div>
               </div>
               <div className="field">

@@ -255,6 +255,159 @@ async function getAttendanceOverview(req, res) {
   }
 }
 
+
+async function getMyAttendance(req, res) {
+  try {
+    const lateWeight = await getLateWeight();
+    const summaryResult = await pool.query(
+      `SELECT
+         COUNT(*) FILTER (WHERE a.status IS NOT NULL) AS marked_events,
+         COUNT(*) FILTER (WHERE a.status='present') AS present_count,
+         COUNT(*) FILTER (WHERE a.status='late') AS late_count,
+         COUNT(*) FILTER (WHERE a.status='absent') AS absent_count,
+         COUNT(*) FILTER (WHERE a.status='excused') AS excused_count,
+         COALESCE(
+           ROUND(
+             (
+               (COUNT(*) FILTER (WHERE a.status='present'))::numeric +
+               ((COUNT(*) FILTER (WHERE a.status='late'))::numeric * $2)
+             ) / NULLIF((COUNT(*) FILTER (WHERE a.status IS NOT NULL))::numeric, 0) * 100,
+             1
+           ),
+           0
+         ) AS attendance_rate
+       FROM event_attendance a
+       WHERE a.user_id = $1`,
+      [req.user.id, lateWeight]
+    );
+
+    const historyResult = await pool.query(
+      `SELECT e.id, e.title, e.description, e.location, e.event_date, e.section_scope,
+              a.status AS attendance_status,
+              CASE
+                WHEN e.event_date > NOW() AND a.status IS NULL THEN 'upcoming'
+                WHEN e.event_date <= NOW() AND a.status IS NULL THEN 'pending-mark'
+                ELSE COALESCE(a.status, 'upcoming')
+              END AS attendance_state
+       FROM event_sessions e
+       LEFT JOIN event_attendance a ON a.event_id = e.id AND a.user_id = $1
+       WHERE e.section_scope IN ('all', $2)
+       ORDER BY e.event_date DESC
+       LIMIT 50`,
+      [req.user.id, req.user.section]
+    );
+
+    const upcoming = historyResult.rows
+      .filter((row) => new Date(row.event_date).getTime() >= Date.now())
+      .sort((a, b) => new Date(a.event_date) - new Date(b.event_date))
+      .slice(0, 6)
+      .map((row) => ({
+        ...row,
+        reminder_text: `Upcoming ${row.title} on ${new Date(row.event_date).toLocaleString('en-GB', { day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' })}`,
+      }));
+
+    res.json({
+      summary: summaryResult.rows[0],
+      history: historyResult.rows,
+      upcoming,
+    });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+}
+
+async function getStudentDashboard(req, res) {
+  try {
+    const lateWeight = await getLateWeight();
+    const [attendanceResult, issueResult, updateResult, eventResult, roomResult, todayResult] = await Promise.all([
+      pool.query(
+        `SELECT
+           COUNT(*) FILTER (WHERE a.status IS NOT NULL) AS marked_events,
+           COUNT(*) FILTER (WHERE a.status='present') AS present_count,
+           COUNT(*) FILTER (WHERE a.status='late') AS late_count,
+           COUNT(*) FILTER (WHERE a.status='absent') AS absent_count,
+           COUNT(*) FILTER (WHERE a.status='excused') AS excused_count,
+           COALESCE(
+             ROUND(
+               (
+                 (COUNT(*) FILTER (WHERE a.status='present'))::numeric +
+                 ((COUNT(*) FILTER (WHERE a.status='late'))::numeric * $2)
+               ) / NULLIF((COUNT(*) FILTER (WHERE a.status IS NOT NULL))::numeric, 0) * 100,
+               1
+             ),
+             0
+           ) AS attendance_rate
+         FROM event_attendance a
+         WHERE a.user_id = $1`,
+        [req.user.id, lateWeight]
+      ),
+      pool.query(
+        `SELECT id, title, status, category, created_at AS updated_at
+         FROM issue_reports
+         WHERE user_id = $1
+         ORDER BY created_at DESC
+         LIMIT 5`,
+        [req.user.id]
+      ),
+      pool.query(
+        `SELECT id, track, review_status, progress_score, COALESCE(reviewed_at, created_at) AS updated_at, created_at
+         FROM student_updates
+         WHERE user_id = $1
+         ORDER BY COALESCE(reviewed_at, created_at) DESC
+         LIMIT 5`,
+        [req.user.id]
+      ),
+      pool.query(
+        `SELECT id, title, location, event_date, section_scope
+         FROM event_sessions
+         WHERE section_scope IN ('all', $1)
+           AND event_date >= NOW()
+         ORDER BY event_date ASC
+         LIMIT 4`,
+        [req.user.section]
+      ),
+      pool.query(
+        `SELECT b.name AS building_name, r.name AS room_name
+         FROM room_assignments ra
+         JOIN accommodation_rooms r ON r.id = ra.room_id
+         JOIN accommodation_buildings b ON b.id = r.building_id
+         WHERE ra.user_id = $1`,
+        [req.user.id]
+      ),
+      pool.query(
+        `SELECT id, title, location, event_date, section_scope
+         FROM event_sessions
+         WHERE section_scope IN ('all', $1)
+           AND event_date::date = CURRENT_DATE
+         ORDER BY event_date ASC`,
+        [req.user.section]
+      ),
+    ]);
+
+    const attendance = attendanceResult.rows[0];
+    const lastIssue = issueResult.rows[0] || null;
+    const lastUpdate = updateResult.rows[0] || null;
+    const room = roomResult.rows[0] || null;
+
+    res.json({
+      attendance,
+      upcoming_events: eventResult.rows,
+      todays_events: todayResult.rows,
+      latest_issue: lastIssue,
+      latest_update: lastUpdate,
+      room,
+      quick_stats: {
+        attendance_rate: Number(attendance.attendance_rate || 0),
+        upcoming_events: eventResult.rows.length,
+        unresolved_issues: issueResult.rows.filter((row) => row.status !== 'resolved').length,
+        reviewed_updates: updateResult.rows.filter((row) => row.review_status === 'reviewed').length,
+      },
+    });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+}
+
 module.exports = {
   listEvents,
   createEvent,
@@ -264,4 +417,6 @@ module.exports = {
   saveEventAttendance,
   getAttendanceSummary,
   getAttendanceOverview,
+  getMyAttendance,
+  getStudentDashboard,
 };

@@ -31,19 +31,11 @@ export default function Page() {
   const [error, setError] = useState('');
   const [success, setSuccess] = useState('');
 
-  async function load() {
-    try {
-      const data = await apiFetch('/profile/updates');
-      setUpdates(data);
-    } catch (err) {
-      if (err instanceof Error) setError(err.message);
-    } finally {
-      setLoading(false);
-    }
-  }
-
   useEffect(() => {
-    load();
+    apiFetch('/profile/updates')
+      .then((data) => setUpdates(data))
+      .catch((err) => { if (err instanceof Error) setError(err.message); })
+      .finally(() => setLoading(false));
   }, []);
 
   const summary = useMemo(() => ({
@@ -159,7 +151,7 @@ export default function Page() {
                   {item.details ? <p className="review-details">{item.details}</p> : null}
                   <div className="review-meta-grid">
                     <div><strong>Score</strong><span>{item.progress_score ?? '—'}</span></div>
-                    <div><strong>Admin Note</strong><span>{item.admin_note || 'No note yet'}</span></div>
+                    <div><strong>Comment</strong><span>{item.admin_note || 'No note yet'}</span></div>
                   </div>
                 </article>
               ))}

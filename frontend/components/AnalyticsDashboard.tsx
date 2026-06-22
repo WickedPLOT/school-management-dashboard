@@ -3,6 +3,7 @@
 import Link from 'next/link';
 import { useEffect, useMemo, useState } from 'react';
 import { apiFetch } from '@/lib/api';
+import { BROTHERS_CENTER_NAME, SISTERS_CENTER_NAME } from '@/lib/centers';
 
 type SectionKey = 'brothers' | 'sisters';
 type SectionView = 'all' | SectionKey;
@@ -14,6 +15,10 @@ type Student = {
   full_name?: string;
   institution?: string;
   course?: string;
+  nationality?: string;
+  country?: string;
+  county?: string;
+  sub_county?: string;
 };
 
 type Issue = {
@@ -111,21 +116,158 @@ function formatDate(value?: string) {
 }
 
 function sectionLabel(section: SectionKey) {
-  return section === 'brothers' ? 'Brothers' : 'Sisters';
+  return section === 'brothers' ? BROTHERS_CENTER_NAME : SISTERS_CENTER_NAME;
 }
 
 function progressWidth(value: number) {
   return `${Math.max(0, Math.min(100, value))}%`;
 }
 
+
+type ChartDatum = { label: string; value: number; color?: string };
+const CHART_COLORS = ['#0f5132', '#c9a84c', '#2563eb', '#ea580c', '#7c3aed', '#0891b2', '#be123c'];
+
+type HoverSlice = ChartDatum & { percent: number; total: number };
+
+function polarToCartesian(cx: number, cy: number, r: number, angle: number) {
+  const radians = ((angle - 90) * Math.PI) / 180;
+  return { x: cx + r * Math.cos(radians), y: cy + r * Math.sin(radians) };
+}
+
+function describePieSlice(cx: number, cy: number, r: number, startAngle: number, endAngle: number) {
+  const start = polarToCartesian(cx, cy, r, endAngle);
+  const end = polarToCartesian(cx, cy, r, startAngle);
+  const largeArc = endAngle - startAngle <= 180 ? '0' : '1';
+  return `M ${cx} ${cy} L ${start.x} ${start.y} A ${r} ${r} 0 ${largeArc} 0 ${end.x} ${end.y} Z`;
+}
+
+function DonutChart({ title, data, totalLabel }: { title: string; data: ChartDatum[]; totalLabel?: string }) {
+  const [hovered, setHovered] = useState<HoverSlice | null>(null);
+  const total = data.reduce((sum, item) => sum + item.value, 0);
+  let angle = 0;
+
+  return (
+    <section className="content-card analytics-donut-card analytics-pie-card">
+      <div className="content-card-header"><h2>{title}</h2></div>
+      <div className="analytics-donut-body analytics-pie-body">
+        <div className="analytics-donut-wrap analytics-pie-wrap" onMouseLeave={() => setHovered(null)}>
+          <svg viewBox="0 0 128 128" role="img" aria-label={title}>
+            <circle cx="64" cy="64" r="54" fill="#edf3ef" />
+            {total > 0 ? data.map((item, index) => {
+              const percent = item.value / total;
+              const start = angle;
+              const end = angle + percent * 360;
+              angle = end;
+              const color = item.color || CHART_COLORS[index % CHART_COLORS.length];
+              return (
+                <path
+                  key={item.label}
+                  className="analytics-pie-slice"
+                  d={describePieSlice(64, 64, 54, start, Math.min(end, 359.999))}
+                  fill={color}
+                  stroke="#fff"
+                  strokeWidth="1.5"
+                  onMouseEnter={() => setHovered({ ...item, color, percent: Math.round(percent * 100), total })}
+                  onFocus={() => setHovered({ ...item, color, percent: Math.round(percent * 100), total })}
+                  tabIndex={0}
+                >
+                  <title>{`${item.label}: ${item.value} of ${total} ${totalLabel || 'total'} (${Math.round(percent * 100)}%)`}</title>
+                </path>
+              );
+            }) : null}
+          </svg>
+          <div className="analytics-pie-total"><strong>{total}</strong><span>{totalLabel || 'Total'}</span></div>
+          {hovered ? (
+            <div className="analytics-pie-tooltip">
+              <strong>{hovered.label}</strong>
+              <span>{hovered.value} of {hovered.total} {totalLabel || 'total'}</span>
+              <em>{hovered.percent}%</em>
+            </div>
+          ) : null}
+        </div>
+        <div className="analytics-donut-legend">
+          {data.length ? data.map((item, index) => (
+            <div key={item.label} className="analytics-donut-legend-row">
+              <span style={{ background: item.color || CHART_COLORS[index % CHART_COLORS.length] }} />
+              <p>{item.label}</p>
+              <strong>{item.value}</strong>
+            </div>
+          )) : <p className="table-muted">No data yet.</p>}
+        </div>
+      </div>
+    </section>
+  );
+}
+
+function topDistribution<T>(items: T[], getLabel: (item: T) => string | undefined, fallback = 'Not set', limit = 5): ChartDatum[] {
+  const counts = new Map<string, number>();
+  for (const item of items) {
+    const raw = getLabel(item)?.trim();
+    const label = raw || fallback;
+    counts.set(label, (counts.get(label) || 0) + 1);
+  }
+  return [...counts.entries()]
+    .sort((a, b) => b[1] - a[1])
+    .slice(0, limit)
+    .map(([label, value], index) => ({ label, value, color: CHART_COLORS[index % CHART_COLORS.length] }));
+}
+
+
+type BarDatum = { label: string; value: number; meta?: string; color?: string };
+
+function BarChartCard({ title, data, suffix = '', maxValue }: { title: string; data: BarDatum[]; suffix?: string; maxValue?: number }) {
+  const max = maxValue || Math.max(...data.map((item) => item.value), 1);
+  const ticks = [max, Math.round(max * 0.75), Math.round(max * 0.5), Math.round(max * 0.25), 0];
+  return (
+    <section className="content-card analytics-column-card">
+      <div className="content-card-header"><h2>{title}</h2></div>
+      {data.length ? (
+        <div className="column-chart-shell">
+          <div className="column-chart-y-axis">
+            {ticks.map((tick) => <span key={tick}>{tick}{suffix}</span>)}
+          </div>
+          <div className="column-chart-plot">
+            <div className="column-chart-grid" aria-hidden="true">
+              {ticks.map((tick) => <span key={tick} />)}
+            </div>
+            <div className="column-chart-bars">
+              {data.map((item, index) => {
+                const height = max ? Math.max(4, Math.min(100, (item.value / max) * 100)) : 0;
+                return (
+                  <div key={item.label} className="column-chart-item">
+                    <div className="column-chart-bar-wrap">
+                      <div
+                        className="column-chart-bar"
+                        style={{ height: `${height}%`, background: item.color || CHART_COLORS[index % CHART_COLORS.length] }}
+                        title={`${item.label}: ${item.value}${suffix}`}
+                      />
+                    </div>
+                    <strong>{item.value}{suffix}</strong>
+                    <span>{item.label}</span>
+                    {item.meta ? <small>{item.meta}</small> : null}
+                  </div>
+                );
+              })}
+            </div>
+          </div>
+        </div>
+      ) : <p className="table-muted" style={{ padding: '1rem' }}>No data yet.</p>}
+    </section>
+  );
+}
+
 export default function AnalyticsDashboard({
   focus,
   title,
   description,
+  quickActions,
+  todayPanel,
 }: {
   focus: Focus;
   title: string;
   description: string;
+  quickActions?: React.ReactNode;
+  todayPanel?: React.ReactNode;
 }) {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
@@ -240,6 +382,67 @@ export default function AnalyticsDashboard({
     religious: scopedUpdates.filter((item) => item.track === 'religious').length,
     activity: scopedUpdates.filter((item) => item.track === 'activity').length,
   };
+  const sections = ['brothers', 'sisters'] as const;
+
+  const sectionDistribution = topDistribution(scopedStudents, (item) => sectionLabel(item.section));
+  const countryDistribution = topDistribution(scopedStudents, (item) => item.country || item.nationality, 'Country not set');
+  const countyDistribution = topDistribution(scopedStudents, (item) => item.county, 'County not set');
+  const courseDistribution = topDistribution(scopedStudents, (item) => item.course, 'Course not set', 7);
+  const profileCompletionDistribution = [
+    { label: 'Complete', value: Math.max(scopedStudents.length - scopedIncomplete.length, 0), color: '#0f5132' },
+    { label: 'Incomplete', value: scopedIncomplete.length, color: '#c9a84c' },
+  ];
+  const occupancyDistribution = [
+    { label: 'Occupied beds', value: occupied, color: '#0f5132' },
+    { label: 'Available beds', value: Math.max(capacity - occupied, 0), color: '#c9a84c' },
+    { label: 'Unassigned students', value: unassigned, color: '#be123c' },
+  ].filter((item) => item.value > 0);
+  const issueDistribution = [
+    { label: 'Open', value: openIssues.length, color: '#be123c' },
+    { label: 'Resolved', value: resolvedIssues.length, color: '#0f5132' },
+  ];
+  const progressDistribution = [
+    { label: 'Academic', value: updateTrackCounts.academic, color: '#2563eb' },
+    { label: 'Religious', value: updateTrackCounts.religious, color: '#0f5132' },
+    { label: 'Activity', value: updateTrackCounts.activity, color: '#c9a84c' },
+  ];
+  const dormOccupancyBars = scopedBuildings.map((building) => {
+    const buildingCapacity = building.rooms.reduce((sum, room) => sum + num(room.capacity), 0);
+    const buildingOccupied = building.rooms.reduce((sum, room) => sum + num(room.occupied), 0);
+    return {
+      label: building.name,
+      value: pct(buildingOccupied, buildingCapacity),
+      meta: `${buildingOccupied}/${buildingCapacity} beds · ${sectionLabel(building.section_scope)}`,
+      color: building.section_scope === 'sisters' ? '#be123c' : '#0f5132',
+    };
+  });
+  const sectionComparisonBars = sections.map((section) => {
+    const sectionStudents = students.filter((item) => item.section === section).length;
+    const sectionAttendance = attendance.filter((item) => item.section === section);
+    const sectionAvgAttendance = sectionAttendance.length
+      ? Math.round(sectionAttendance.reduce((sum, item) => sum + num(item.attendance_rate), 0) / sectionAttendance.length)
+      : 0;
+    const sectionBuildings = buildings.filter((item) => item.section_scope === section);
+    const sectionCapacity = sectionBuildings.reduce((sum, building) => sum + building.rooms.reduce((roomSum, room) => roomSum + num(room.capacity), 0), 0);
+    const sectionOccupied = sectionBuildings.reduce((sum, building) => sum + building.rooms.reduce((roomSum, room) => roomSum + num(room.occupied), 0), 0);
+    return {
+      label: sectionLabel(section),
+      value: sectionStudents,
+      meta: `${sectionAvgAttendance}% attendance · ${pct(sectionOccupied, sectionCapacity)}% occupancy`,
+      color: section === 'sisters' ? '#be123c' : '#0f5132',
+    };
+  });
+  const attendanceBars = scopedAttendance
+    .map((row) => ({ label: row.full_name || row.email, value: Math.round(num(row.attendance_rate)), meta: `${num(row.marked_events)} marked events`, color: num(row.attendance_rate) >= 75 ? '#0f5132' : '#c9a84c' }))
+    .sort((a, b) => b.value - a.value)
+    .slice(0, 8);
+  const courseBars = courseDistribution.map((item) => ({ label: item.label, value: item.value, meta: `${item.value} student${item.value === 1 ? '' : 's'}`, color: item.color }));
+  const progressBars = ['academic', 'religious', 'activity'].map((track, index) => ({
+    label: track.charAt(0).toUpperCase() + track.slice(1),
+    value: scopedUpdates.filter((item) => item.track === track).length,
+    meta: `${scopedUpdates.filter((item) => item.track === track && item.review_status === 'reviewed').length} reviewed`,
+    color: CHART_COLORS[index],
+  }));
 
   const cards = [
     { label: 'Approved Students', value: scopedStudents.length },
@@ -250,13 +453,14 @@ export default function AnalyticsDashboard({
     { label: 'Delivered Messages', value: deliveredMessages },
   ];
 
-  const sections = ['brothers', 'sisters'] as const;
-
   return (
     <div className="section-shell">
       <div className="page-header">
-        <h1>{title}</h1>
-        <p>{description}</p>
+        <div>
+          <h1>{title}</h1>
+          <p>{description}</p>
+        </div>
+        {quickActions ? quickActions : null}
       </div>
 
       <div className="section-outline" style={{ marginBottom: '1rem' }}>
@@ -275,7 +479,7 @@ export default function AnalyticsDashboard({
         {user?.role === 'super_admin' ? (
           <div className="legend-row" style={{ padding: '0 1rem 1rem' }}>
             <button type="button" className="btn-outline" style={{ background: sectionView === 'all' ? 'var(--green)' : 'white', color: sectionView === 'all' ? 'white' : 'var(--green)' }} onClick={() => setSectionView('all')}>
-              Both Sections
+              All Centers
             </button>
             {sections.map((section) => (
               <button key={section} type="button" className="btn-outline" style={{ background: sectionView === section ? 'var(--green)' : 'white', color: sectionView === section ? 'white' : 'var(--green)' }} onClick={() => setSectionView(section)}>
@@ -291,6 +495,8 @@ export default function AnalyticsDashboard({
 
       {!loading && !error ? (
         <>
+          {todayPanel ?? null}
+
           <div className="stats-grid">
             {cards.map((card) => (
               <div key={card.label} className="stat-card">
@@ -300,6 +506,21 @@ export default function AnalyticsDashboard({
                 </div>
               </div>
             ))}
+          </div>
+
+          <div style={{ display: 'grid', gap: '1rem', gridTemplateColumns: 'repeat(auto-fill, minmax(260px, 1fr))', marginTop: '1rem', alignItems: 'start' }}>
+            {user?.role === 'super_admin' ? <BarChartCard title="Center Comparison" data={sectionComparisonBars} /> : null}
+            <BarChartCard title="Most Popular Courses" data={courseBars} />
+            <BarChartCard title="Dorm Occupancy" data={dormOccupancyBars} suffix="%" maxValue={100} />
+            <BarChartCard title="Program Activity Volume" data={progressBars} />
+            <DonutChart title="Center Split" data={sectionDistribution} totalLabel="Students" />
+            <DonutChart title="Country / Nationality" data={countryDistribution} totalLabel="Students" />
+            <DonutChart title="County Distribution" data={countyDistribution} totalLabel="Students" />
+            <DonutChart title="Popular Courses" data={courseDistribution} totalLabel="Students" />
+            <DonutChart title="Profile Completion" data={profileCompletionDistribution} totalLabel="Profiles" />
+            <DonutChart title="Dorm Occupancy" data={occupancyDistribution} totalLabel="Beds" />
+            <DonutChart title="Issue Status" data={issueDistribution} totalLabel="Issues" />
+            <DonutChart title="Program Progress Tracks" data={progressDistribution} totalLabel="Updates" />
           </div>
 
           {(focus === 'overview' || focus === 'engagement') ? (
@@ -427,27 +648,29 @@ export default function AnalyticsDashboard({
 
           {focus === 'overview' ? (
             <div className="content-grid" style={{ display: 'grid', gap: '1rem', gridTemplateColumns: 'repeat(auto-fit, minmax(320px, 1fr))', marginTop: '1rem' }}>
-              <section className="content-card">
-                <div className="content-card-header"><h2>Section Comparison</h2></div>
-                <div style={{ padding: '1rem', display: 'grid', gap: '0.9rem' }}>
-                  {sections.map((section) => {
-                    const sectionStudents = students.filter((item) => item.section === section).length;
-                    const sectionAttendance = attendance.filter((item) => item.section === section);
-                    const sectionAvgAttendance = sectionAttendance.length
-                      ? Math.round(sectionAttendance.reduce((sum, item) => sum + num(item.attendance_rate), 0) / sectionAttendance.length)
-                      : 0;
-                    const sectionIssues = issues.filter((item) => item.section === section && item.status !== 'resolved').length;
-                    return (
-                      <div key={section} style={{ border: '1px solid var(--border)', borderRadius: '0.85rem', padding: '0.85rem' }}>
-                        <strong>{sectionLabel(section)}</strong>
-                        <div style={{ color: 'var(--muted)', marginTop: '0.35rem' }}>
-                          {sectionStudents} students • {sectionAvgAttendance}% attendance • {sectionIssues} open issues
+              {user?.role === 'super_admin' ? (
+                <section className="content-card">
+                  <div className="content-card-header"><h2>Center Comparison</h2></div>
+                  <div style={{ padding: '1rem', display: 'grid', gap: '0.9rem' }}>
+                    {sections.map((section) => {
+                      const sectionStudents = students.filter((item) => item.section === section).length;
+                      const sectionAttendance = attendance.filter((item) => item.section === section);
+                      const sectionAvgAttendance = sectionAttendance.length
+                        ? Math.round(sectionAttendance.reduce((sum, item) => sum + num(item.attendance_rate), 0) / sectionAttendance.length)
+                        : 0;
+                      const sectionIssues = issues.filter((item) => item.section === section && item.status !== 'resolved').length;
+                      return (
+                        <div key={section} style={{ border: '1px solid var(--border)', borderRadius: '0.85rem', padding: '0.85rem' }}>
+                          <strong>{sectionLabel(section)}</strong>
+                          <div style={{ color: 'var(--muted)', marginTop: '0.35rem' }}>
+                            {sectionStudents} students • {sectionAvgAttendance}% attendance • {sectionIssues} open issues
+                          </div>
                         </div>
-                      </div>
-                    );
-                  })}
-                </div>
-              </section>
+                      );
+                    })}
+                  </div>
+                </section>
+              ) : null}
 
               <section className="content-card">
                 <div className="content-card-header"><h2>Profile Health</h2></div>

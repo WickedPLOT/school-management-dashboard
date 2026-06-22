@@ -1,18 +1,20 @@
 import type { Metadata } from "next";
-import { Geist } from "next/font/google";
 import "./globals.css";
 
-const geist = Geist({ variable: "--font-geist-sans", subsets: ["latin"] });
-
 export const metadata: Metadata = {
-  title: "Hayrat Centre — SRMS",
-  description: "Student Resident Management System",
+  title: "HAYRAT Centers",
+  description: "Hayrat Centers Management Platform",
 };
 
 export default function RootLayout({ children }: { children: React.ReactNode }) {
   return (
-    <html lang="en" className={geist.variable}>
-      <body>{children}</body>
+    <html lang="en">
+      <body>
+        <script dangerouslySetInnerHTML={{
+          __html: `window.addEventListener('error',function(e){console.error('GLOBAL_ERROR:',e.message,e.filename,e.lineno)});window.addEventListener('unhandledrejection',function(e){console.error('UNHANDLED_REJECTION:',e.reason)});`
+        }} />
+        {children}
+      </body>
     </html>
   );
 }

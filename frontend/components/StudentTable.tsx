@@ -1,8 +1,9 @@
 'use client';
 import Link from 'next/link';
+import { centerNameForUser } from '@/lib/centers';
 
 export type StudentRow = {
-  id: number; email: string; section: string; status: string; created_at: string;
+  id: number; email: string; section: string; status: string; created_at: string; entry_date?: string;
   full_name?: string; gender?: string; phone?: string; institution?: string; course?: string;
 };
 
@@ -28,7 +29,7 @@ export default function StudentTable({ students, loading, error, actions, emptyM
       <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '0.85rem' }}>
         <thead>
           <tr style={{ borderBottom: '1px solid var(--border)', background: '#fafafa' }}>
-            {['Name', 'Email', 'Section', 'Gender', 'Institution', 'Course', 'Joined', ...(actions ? ['Actions'] : [])].map(h => (
+            {['Name', 'Email', 'Center', 'Institution', 'Course', 'Entry Date', ...(actions ? ['Actions'] : [])].map(h => (
               <th key={h} style={{ padding: '0.75rem 1rem', textAlign: 'left', fontWeight: 600, fontSize: '0.75rem', color: 'var(--muted)', whiteSpace: 'nowrap' }}>{h}</th>
             ))}
           </tr>
@@ -45,14 +46,13 @@ export default function StudentTable({ students, loading, error, actions, emptyM
                 </Link>
               </td>
               <td style={{ padding: '0.75rem 1rem', color: 'var(--muted)' }}>{s.email}</td>
-              <td style={{ padding: '0.75rem 1rem' }}>
-                <span className={`badge badge-${s.section}`}>{s.section}</span>
-              </td>
-              <td style={{ padding: '0.75rem 1rem', textTransform: 'capitalize' }}>{s.gender || '—'}</td>
+              <td style={{ padding: '0.75rem 1rem', whiteSpace: 'nowrap' }}>{centerNameForUser({ role: 'student', section: s.section })}</td>
               <td style={{ padding: '0.75rem 1rem' }}>{s.institution || '—'}</td>
               <td style={{ padding: '0.75rem 1rem' }}>{s.course || '—'}</td>
               <td style={{ padding: '0.75rem 1rem', color: 'var(--muted)', whiteSpace: 'nowrap' }}>
-                {new Date(s.created_at).toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric' })}
+                {s.entry_date
+                  ? new Date(s.entry_date).toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric' })
+                  : '—'}
               </td>
               {actions && <td style={{ padding: '0.75rem 1rem' }}>{actions(s)}</td>}
             </tr>

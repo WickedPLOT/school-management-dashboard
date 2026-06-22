@@ -2,15 +2,18 @@
 import { useEffect, useState } from 'react';
 import { apiFetch } from '@/lib/api';
 import { Icons } from '@/lib/icons';
+import Link from 'next/link';
 
 type User = {
   id: number; email: string; section: string; status: string; created_at: string;
   full_name?: string; gender?: string; institution?: string;
 };
 type Invite = { email: string; link: string };
+type Stats = { pending: number; approved: number; rejected: number; incomplete: number };
 
 export default function RegistrationsPage() {
   const [users, setUsers] = useState<User[]>([]);
+  const [stats, setStats] = useState<Stats | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
 
@@ -32,8 +35,14 @@ export default function RegistrationsPage() {
   const [copiedAll, setCopiedAll] = useState(false);
 
   async function load() {
-    try { setUsers(await apiFetch('/admin/pending-users')); }
-    catch (err: any) { setError(err.message); }
+    try {
+      const [pendingUsers, dashboardStats] = await Promise.all([
+        apiFetch('/admin/pending-users'),
+        apiFetch('/admin/dashboard'),
+      ]);
+      setUsers(pendingUsers);
+      setStats(dashboardStats);
+    } catch (err: any) { setError(err.message); }
     finally { setLoading(false); }
   }
 
@@ -41,7 +50,7 @@ export default function RegistrationsPage() {
     try {
       await apiFetch(`/admin/${type}/${id}`, { method: 'PATCH' });
       setUsers(u => u.filter(x => x.id !== id));
-    } catch (err: any) { alert(err.message); }
+    } catch (err: any) { setError(err.message); }
   }
 
   // Single: generate one link with no email
@@ -52,7 +61,7 @@ export default function RegistrationsPage() {
     try {
       const data = await apiFetch('/admin/invite/single', { method: 'POST' });
       setSingleLink(data.link);
-    } catch (err: any) { alert(err.message); }
+    } catch (err: any) { setError(err.message); }
     finally { setSingleGenerating(false); }
   }
 
@@ -102,7 +111,26 @@ export default function RegistrationsPage() {
     <div>
       <div className="page-header">
         <h1>Registrations</h1>
-        <p>Generate invite links and review pending applications</p>
+        <p>Generate student registration links, approve accounts, and review registration status.</p>
+      </div>
+
+      <div className="stats-grid" style={{ marginBottom: '1.5rem' }}>
+        {[
+          { label: 'Pending Approvals', value: stats?.pending, icon: Icons.students, color: '#fef3c7', href: '/admin/students/pending' },
+          { label: 'Approved Students', value: stats?.approved, icon: Icons.students, color: '#d1fae5', href: '/admin/students/all' },
+          { label: 'Rejected Accounts', value: stats?.rejected, icon: Icons.students, color: '#fee2e2', href: '/admin/students/rejected' },
+          { label: 'Incomplete Profiles', value: stats?.incomplete, icon: Icons.profile, color: '#fef3c7', href: '/admin/profiles/incomplete' },
+        ].map((card) => (
+          <Link key={card.label} href={card.href} style={{ textDecoration: 'none' }}>
+            <div className="stat-card" style={{ cursor: 'pointer' }}>
+              <div className="stat-icon" style={{ background: card.color }}>{card.icon}</div>
+              <div>
+                <h3>{loading ? '—' : card.value}</h3>
+                <p>{card.label}</p>
+              </div>
+            </div>
+          </Link>
+        ))}
       </div>
 
       {/* Invite card */}

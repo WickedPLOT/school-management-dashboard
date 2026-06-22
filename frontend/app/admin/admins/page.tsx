@@ -1,6 +1,10 @@
 'use client';
 import { useEffect, useState } from 'react';
 import { apiFetch } from '@/lib/api';
+import PasswordInput from '@/components/PasswordInput';
+import ConfirmDialog from '@/components/ConfirmDialog';
+import { BROTHERS_CENTER_NAME, SISTERS_CENTER_NAME } from '@/lib/centers';
+import Toast from '@/components/Toast';
 
 type Admin = { id: number; email: string; role: string; section: string; status: string; created_at: string };
 
@@ -12,6 +16,8 @@ export default function AdminManagementPage() {
   const [formError, setFormError] = useState('');
   const [creating, setCreating] = useState(false);
   const [showForm, setShowForm] = useState(false);
+  const [deleteTarget, setDeleteTarget] = useState<Admin | null>(null);
+  const [toast, setToast] = useState<{ tone: 'success' | 'error'; message: string } | null>(null);
 
   async function load() {
     apiFetch('/admin/admins')
@@ -29,22 +35,26 @@ export default function AdminManagementPage() {
       setAdmins(a => [...a, newAdmin]);
       setForm({ email: '', password: '', section: 'brothers' });
       setShowForm(false);
+      setToast({ tone: 'success', message: 'Admin account created.' });
     } catch (e: any) { setFormError(e.message); }
     finally { setCreating(false); }
   }
 
-  async function deactivate(id: number) {
-    if (!confirm('Deactivate this admin?')) return;
+  async function deactivate() {
+    if (!deleteTarget) return;
     try {
-      await apiFetch(`/admin/admins/${id}`, { method: 'DELETE' });
-      setAdmins(a => a.filter(x => x.id !== id));
-    } catch (e: any) { alert(e.message); }
+      await apiFetch(`/admin/admins/${deleteTarget.id}`, { method: 'DELETE' });
+      setAdmins(a => a.filter(x => x.id !== deleteTarget.id));
+      setDeleteTarget(null);
+      setToast({ tone: 'success', message: 'Admin account deactivated.' });
+    } catch (e: any) { setToast({ tone: 'error', message: e.message }); }
   }
 
   useEffect(() => { load(); }, []);
 
   return (
     <div>
+      {toast ? <Toast tone={toast.tone} message={toast.message} onClose={() => setToast(null)} /> : null}
       <div className="page-header" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', flexWrap: 'wrap', gap: '1rem' }}>
         <div>
           <h1>Admin Management</h1>
@@ -69,13 +79,13 @@ export default function AdminManagementPage() {
             </div>
             <div className="field">
               <label>Password <span style={{ color: '#dc2626' }}>*</span></label>
-              <input type="password" required minLength={6} value={form.password} onChange={e => setForm({ ...form, password: e.target.value })} placeholder="Min. 6 characters" />
+              <PasswordInput required minLength={6} value={form.password} onChange={e => setForm({ ...form, password: e.target.value })} placeholder="Min. 6 characters" />
             </div>
             <div className="field">
               <label>Section <span style={{ color: '#dc2626' }}>*</span></label>
               <select value={form.section} onChange={e => setForm({ ...form, section: e.target.value })}>
-                <option value="brothers">Brothers</option>
-                <option value="sisters">Sisters</option>
+                <option value="brothers">{BROTHERS_CENTER_NAME}</option>
+                <option value="sisters">{SISTERS_CENTER_NAME}</option>
               </select>
             </div>
             {formError && <div className="error-msg" style={{ gridColumn: '1 / -1' }}>{formError}</div>}
@@ -112,11 +122,14 @@ export default function AdminManagementPage() {
               </div>
             </div>
             <div className="reg-item-actions">
-              <button className="btn-reject" onClick={() => deactivate(a.id)}>Deactivate</button>
+              <button className="btn-reject" onClick={() => setDeleteTarget(a)}>Deactivate</button>
             </div>
           </div>
         ))}
       </div>
+      {deleteTarget ? (
+        <ConfirmDialog title="Deactivate admin?" message={`This will deactivate ${deleteTarget.email}.`} confirmLabel="Deactivate" tone="danger" onCancel={() => setDeleteTarget(null)} onConfirm={deactivate} />
+      ) : null}
     </div>
   );
 }

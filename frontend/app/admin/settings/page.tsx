@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from 'react';
 import { apiFetch } from '@/lib/api';
+import { BROTHERS_CENTER_NAME, SISTERS_CENTER_NAME } from '@/lib/centers';
 
 type AppSettings = {
   centre_name: string;
@@ -16,7 +17,7 @@ type AppSettings = {
 };
 
 const DEFAULT_SETTINGS: AppSettings = {
-  centre_name: 'Hayrat Centre',
+  centre_name: 'Centre of Suffa',
   platform_label: 'Student Resident Management System',
   support_email: '',
   registration_invite_expiry_days: 7,
@@ -168,9 +169,9 @@ export default function Page() {
                   <div className="field">
                     <label>Default Event Section Scope</label>
                     <select value={settings.default_event_section_scope} onChange={(e) => update('default_event_section_scope', e.target.value as AppSettings['default_event_section_scope'])}>
-                      <option value="brothers">Brothers</option>
-                      <option value="sisters">Sisters</option>
-                      <option value="all">Both Sections</option>
+                      <option value="brothers">{BROTHERS_CENTER_NAME}</option>
+                      <option value="sisters">{SISTERS_CENTER_NAME}</option>
+                      <option value="all">Both Centers</option>
                     </select>
                   </div>
                 </div>

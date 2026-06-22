@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from 'react';
 import { apiFetch } from '@/lib/api';
+import PasswordInput from '@/components/PasswordInput';
 
 type Settings = {
   sms_enabled: boolean;
@@ -10,10 +11,16 @@ type Settings = {
   at_api_key: string;
   at_sender_id: string;
   at_use_sandbox: boolean;
+  at_paybill_number: string;
   at_wallet_reference: string;
   at_balance_currency: string;
   at_credit_balance: number | string;
   at_topup_notes: string;
+  live_balance: number | null;
+  live_balance_currency: string;
+  live_balance_raw: string | null;
+  live_balance_source: string;
+  live_balance_error: string | null;
   email_enabled: boolean;
   smtp_host: string;
   smtp_port: number | string;
@@ -44,17 +51,23 @@ const EMPTY_SETTINGS: Settings = {
   at_api_key: '',
   at_sender_id: '',
   at_use_sandbox: true,
+  at_paybill_number: '',
   at_wallet_reference: '',
   at_balance_currency: 'KES',
   at_credit_balance: '',
   at_topup_notes: '',
+  live_balance: null,
+  live_balance_currency: 'KES',
+  live_balance_raw: null,
+  live_balance_source: 'unavailable',
+  live_balance_error: null,
   email_enabled: false,
   smtp_host: '',
   smtp_port: 587,
   smtp_secure: false,
   smtp_user: '',
   smtp_pass: '',
-  smtp_from_name: 'Hayrat Centre',
+  smtp_from_name: 'Centre of Suffa',
   smtp_from_email: '',
 };
 
@@ -75,8 +88,25 @@ export default function Page() {
         setSettings({
           ...EMPTY_SETTINGS,
           ...settingsData,
-          smtp_port: settingsData.smtp_port ?? 587,
+          at_username: settingsData.at_username ?? '',
+          at_api_key: settingsData.at_api_key ?? '',
+          at_sender_id: settingsData.at_sender_id ?? '',
+          at_paybill_number: settingsData.at_paybill_number ?? '',
+          at_wallet_reference: settingsData.at_wallet_reference ?? '',
+          at_balance_currency: settingsData.at_balance_currency ?? 'KES',
           at_credit_balance: settingsData.at_credit_balance ?? '',
+          at_topup_notes: settingsData.at_topup_notes ?? '',
+          live_balance: settingsData.live_balance ?? null,
+          live_balance_currency: settingsData.live_balance_currency ?? 'KES',
+          live_balance_raw: settingsData.live_balance_raw ?? null,
+          live_balance_source: settingsData.live_balance_source ?? 'unavailable',
+          live_balance_error: settingsData.live_balance_error ?? null,
+          smtp_host: settingsData.smtp_host ?? '',
+          smtp_port: settingsData.smtp_port ?? 587,
+          smtp_user: settingsData.smtp_user ?? '',
+          smtp_pass: settingsData.smtp_pass ?? '',
+          smtp_from_name: settingsData.smtp_from_name ?? 'Centre of Suffa',
+          smtp_from_email: settingsData.smtp_from_email ?? '',
         });
         setHistory(historyData);
       })
@@ -91,7 +121,7 @@ export default function Page() {
     setSuccess('');
 
     try {
-      await apiFetch('/admin/messages/settings', {
+      const updated = await apiFetch('/admin/messages/settings', {
         method: 'PUT',
         body: JSON.stringify({
           ...settings,
@@ -99,6 +129,21 @@ export default function Page() {
           at_credit_balance: settings.at_credit_balance === '' ? null : Number(settings.at_credit_balance),
         }),
       });
+      setSettings((current) => ({
+        ...current,
+        ...updated,
+        at_username: updated.at_username ?? '',
+        at_api_key: updated.at_api_key ?? '',
+        at_sender_id: updated.at_sender_id ?? '',
+        at_paybill_number: updated.at_paybill_number ?? '',
+        at_wallet_reference: updated.at_wallet_reference ?? '',
+        at_topup_notes: updated.at_topup_notes ?? '',
+        live_balance: updated.live_balance ?? null,
+        live_balance_currency: updated.live_balance_currency ?? current.live_balance_currency,
+        live_balance_raw: updated.live_balance_raw ?? null,
+        live_balance_source: updated.live_balance_source ?? 'unavailable',
+        live_balance_error: updated.live_balance_error ?? null,
+      }));
       setSuccess('Communication settings saved.');
     } catch (err) {
       if (err instanceof Error) setError(err.message);
@@ -111,6 +156,10 @@ export default function Page() {
     setSettings((current) => ({ ...current, [key]: value }));
   }
 
+  const balanceLabel = settings.live_balance == null
+    ? 'Unavailable'
+    : `${settings.live_balance_currency || 'KES'} ${settings.live_balance.toLocaleString()}`;
+
   return (
     <div className="section-shell">
       <div className="page-header">
@@ -122,7 +171,7 @@ export default function Page() {
         <div className="section-outline-header">
           <div>
             <h2>Provider Setup</h2>
-            <p>The client manages SMS credit directly in Africa&apos;s Talking; this system only uses the configured credentials.</p>
+            <p>The client manages SMS credit inside Africa&apos;s Talking. This page stores the credentials and top-up instructions for admins.</p>
           </div>
         </div>
 
@@ -162,8 +211,8 @@ export default function Page() {
                       <input value={settings.at_sender_id} onChange={(e) => update('at_sender_id', e.target.value)} placeholder="Optional sender ID" />
                     </div>
                     <div className="field">
-                      <label>Wallet / Account Ref</label>
-                      <input value={settings.at_wallet_reference} onChange={(e) => update('at_wallet_reference', e.target.value)} placeholder="Client wallet reference" />
+                      <label>Paybill Number</label>
+                      <input value={settings.at_paybill_number} onChange={(e) => update('at_paybill_number', e.target.value)} placeholder="e.g. 525900" />
                     </div>
                   </div>
                   <div className="form-grid">
@@ -172,9 +221,15 @@ export default function Page() {
                       <input value={settings.at_api_key} onChange={(e) => update('at_api_key', e.target.value)} placeholder="Africa's Talking API key" />
                     </div>
                     <div className="field">
+                      <label>Account Number</label>
+                      <input value={settings.at_wallet_reference} onChange={(e) => update('at_wallet_reference', e.target.value)} placeholder="Africa's Talking account number" />
+                    </div>
+                    <div className="field">
                       <label>Balance Currency</label>
                       <input value={settings.at_balance_currency} onChange={(e) => update('at_balance_currency', e.target.value)} placeholder="KES" />
                     </div>
+                  </div>
+                  <div className="form-grid">
                     <div className="field">
                       <label>
                         <input type="checkbox" checked={settings.at_use_sandbox} onChange={(e) => update('at_use_sandbox', e.target.checked)} style={{ marginRight: 8 }} />
@@ -184,7 +239,7 @@ export default function Page() {
                   </div>
                   <div className="field">
                     <label>Top-up / Finance Notes</label>
-                    <textarea rows={3} value={settings.at_topup_notes} onChange={(e) => update('at_topup_notes', e.target.value)} placeholder="Client-side instructions for loading SMS wallet credit" />
+                    <textarea rows={4} value={settings.at_topup_notes} onChange={(e) => update('at_topup_notes', e.target.value)} placeholder="Client-side instructions for loading SMS wallet credit" />
                   </div>
                 </div>
               </div>
@@ -214,11 +269,11 @@ export default function Page() {
                   <div className="form-grid">
                     <div className="field">
                       <label>SMTP Password</label>
-                      <input type="password" value={settings.smtp_pass} onChange={(e) => update('smtp_pass', e.target.value)} placeholder="SMTP password" />
+                      <PasswordInput value={settings.smtp_pass} onChange={(e) => update('smtp_pass', e.target.value)} placeholder="SMTP password" />
                     </div>
                     <div className="field">
                       <label>From Name</label>
-                      <input value={settings.smtp_from_name} onChange={(e) => update('smtp_from_name', e.target.value)} placeholder="Hayrat Centre" />
+                      <input value={settings.smtp_from_name} onChange={(e) => update('smtp_from_name', e.target.value)} placeholder="Centre of Suffa" />
                     </div>
                     <div className="field">
                       <label>From Email</label>
@@ -248,17 +303,20 @@ export default function Page() {
               <div>
                 <h2 style={{ fontSize: '0.98rem', fontWeight: 800, color: 'var(--green)' }}>SMS Credit</h2>
                 <p className="credit-note">
-                  The client funds the Africa&apos;s Talking wallet directly. This panel tracks the working balance and gives admins a place to jump into the provider top-up flow.
+                  Wallet balance is fetched from Africa&apos;s Talking using the saved username and API key. Top-up instructions stay here for the admin team.
                 </p>
               </div>
               <div className="credit-balance">
-                <strong>{settings.at_credit_balance === '' ? '—' : settings.at_credit_balance}</strong>
-                <span>{settings.at_balance_currency || 'KES'} available</span>
+                <strong>{balanceLabel}</strong>
+                <span>
+                  {settings.live_balance_source === 'provider' ? 'Live provider balance' : settings.live_balance_source === 'cached' ? 'Cached fallback balance' : 'Balance not available yet'}
+                </span>
               </div>
-              <div className="field">
-                <label>Tracked Credit Balance</label>
-                <input value={settings.at_credit_balance} onChange={(e) => update('at_credit_balance', e.target.value)} placeholder="0.00" />
-              </div>
+              {settings.live_balance_error && (
+                <div className="credit-note" style={{ color: '#b45309' }}>
+                  {settings.live_balance_error}
+                </div>
+              )}
               <div className="credit-actions">
                 <a className="btn-outline" href="https://account.africastalking.com/" target="_blank" rel="noreferrer">
                   Open AT Account
@@ -269,19 +327,21 @@ export default function Page() {
               </div>
               <div className="credit-list">
                 <div className="credit-list-item">
-                  <strong>How it works</strong>
-                  <span>Provider credentials are stored here, but wallet funding and actual SMS credit management stay under the client&apos;s Africa&apos;s Talking account.</span>
+                  <strong>M-Pesa Paybill</strong>
+                  <span>{settings.at_paybill_number || 'No paybill number saved yet.'}</span>
                 </div>
                 <div className="credit-list-item">
-                  <strong>Recommended workflow</strong>
-                  <span>Top up in Africa&apos;s Talking first, update the tracked balance here, then send the official broadcast from this system.</span>
+                  <strong>Account Number</strong>
+                  <span>{settings.at_wallet_reference || 'No account number saved yet.'}</span>
                 </div>
                 <div className="credit-list-item">
-                  <strong>Wallet Reference</strong>
-                  <span>{settings.at_wallet_reference || 'No wallet reference saved yet.'}</span>
+                  <strong>Top-up Steps</strong>
+                  <span>
+                    1. On the M-Pesa menu choose Pay Bill. 2. Enter the paybill number shown here. 3. Enter the account number shown here. 4. Enter the amount to load. 5. Confirm payment, then refresh this page.
+                  </span>
                 </div>
                 <div className="credit-list-item">
-                  <strong>Top-up Notes</strong>
+                  <strong>Finance Notes</strong>
                   <span>{settings.at_topup_notes || 'No finance instructions saved yet.'}</span>
                 </div>
               </div>

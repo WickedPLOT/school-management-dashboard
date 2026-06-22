@@ -1,7 +1,7 @@
 'use client';
 
 import { useEffect, useState } from 'react';
-import { useParams } from 'next/navigation';
+import { useParams, useRouter } from 'next/navigation';
 import { apiFetch } from '@/lib/api';
 
 type RosterRow = {
@@ -25,6 +25,7 @@ type EventData = {
 
 export default function Page() {
   const { id } = useParams<{ id: string }>();
+  const router = useRouter();
   const [event, setEvent] = useState<EventData | null>(null);
   const [roster, setRoster] = useState<RosterRow[]>([]);
   const [loading, setLoading] = useState(true);
@@ -75,9 +76,12 @@ export default function Page() {
 
   return (
     <div className="section-shell">
-      <div className="page-header">
-        <h1>{event?.title || 'Event Register'}</h1>
-        <p>Mark present, late, absent, or excused for each student in this event.</p>
+      <div className="page-header page-header-with-action">
+        <button type="button" className="back-arrow-btn" onClick={() => router.back()} aria-label="Go back">← Back</button>
+        <div>
+          <h1>{event?.title || 'Event Register'}</h1>
+          <p>Mark present, late, absent, or excused for each student in this event.</p>
+        </div>
       </div>
 
       <section className="section-outline">
@@ -122,7 +126,7 @@ export default function Page() {
                           <button
                             key={status}
                             type="button"
-                            className={row.attendance_status === status ? 'btn-primary' : 'btn-outline'}
+                            className={status === 'present' ? `attend-present ${row.attendance_status === status ? 'active' : ''}` : status === 'late' ? `attend-late ${row.attendance_status === status ? 'active' : ''}` : status === 'absent' ? `attend-absent ${row.attendance_status === status ? 'active' : ''}` : `attend-excused ${row.attendance_status === status ? 'active' : ''}`}
                             style={{ width: 'auto', padding: '0.45rem 0.8rem' }}
                             onClick={() => setStatus(row.id, status)}
                           >

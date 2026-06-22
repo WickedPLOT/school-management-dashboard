@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from 'react';
 import { apiFetch } from '@/lib/api';
+import MoreDropdown from '@/components/MoreDropdown';
 
 type Resource = {
   id: number;
@@ -109,14 +110,10 @@ export default function Page() {
                       </span>
                     </td>
                     <td>
-                      <div className="table-actions">
-                        <button type="button" className="btn-outline" onClick={() => togglePublished(item)}>
-                          {item.is_published ? 'Unpublish' : 'Publish'}
-                        </button>
-                        <button type="button" className="btn-danger-outline" onClick={() => removeResource(item.id)}>
-                          Delete
-                        </button>
-                      </div>
+                      <MoreDropdown items={[
+                        { label: item.is_published ? 'Unpublish' : 'Publish', onClick: () => togglePublished(item), color: '#a8681a' },
+                        { label: 'Delete', onClick: () => removeResource(item.id), color: '#dc2626' },
+                      ]} />
                     </td>
                   </tr>
                 ))}

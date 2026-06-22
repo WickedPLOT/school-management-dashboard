@@ -1,11 +1,18 @@
 'use client';
 
+import Link from 'next/link';
 import { useEffect, useState } from 'react';
 import { apiFetch } from '@/lib/api';
+import { BROTHERS_CENTER_NAME, SISTERS_CENTER_NAME } from '@/lib/centers';
 
 type RoomState = 'available' | 'full' | 'partial' | 'empty';
 
-type Building = {
+function bedLabel(index: number) {
+  const letters = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ';
+  return letters[index] || `Bed ${index + 1}`;
+}
+
+type Floor = {
   id: number;
   name: string;
   manager_name?: string;
@@ -22,8 +29,8 @@ type Building = {
 };
 
 export default function Page() {
-  const [buildings, setBuildings] = useState<Building[]>([]);
-  const [activeBuilding, setActiveBuilding] = useState<number | null>(null);
+  const [floors, setFloors] = useState<Floor[]>([]);
+  const [activeFloor, setActiveFloor] = useState<number | null>(null);
   const [selectedRoomId, setSelectedRoomId] = useState<number | null>(null);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
@@ -36,10 +43,10 @@ export default function Page() {
     setError('');
     try {
       const data = await apiFetch('/admin/accommodation/overview');
-      setBuildings(data);
-      const nextBuildingId = activeBuilding || data[0]?.id || null;
-      setActiveBuilding(nextBuildingId);
-      const active = data.find((item: Building) => item.id === nextBuildingId) || data[0];
+      setFloors(data);
+      const nextFloorId = activeFloor || data[0]?.id || null;
+      setActiveFloor(nextFloorId);
+      const active = data.find((item: Floor) => item.id === nextFloorId) || data[0];
       setSelectedRoomId((current) => current || active?.rooms[0]?.id || null);
     } catch (err) {
       if (err instanceof Error) setError(err.message);
@@ -56,12 +63,12 @@ export default function Page() {
     } catch {}
   }, []);
 
-  const visibleBuildings = user?.role === 'super_admin' && sectionView !== 'all'
-    ? buildings.filter((entry) => entry.section_scope === sectionView)
-    : buildings;
+  const visibleFloors = user?.role === 'super_admin' && sectionView !== 'all'
+    ? floors.filter((entry) => entry.section_scope === sectionView)
+    : floors;
 
-  const building = visibleBuildings.find((entry) => entry.id === activeBuilding) || visibleBuildings[0] || null;
-  const room = building?.rooms.find((entry) => entry.id === selectedRoomId) || null;
+  const floor = visibleFloors.find((entry) => entry.id === activeFloor) || visibleFloors[0] || null;
+  const room = floor?.rooms.find((entry) => entry.id === selectedRoomId) || null;
 
   async function assignStudent(userId: number) {
     if (!room) return;
@@ -97,7 +104,7 @@ export default function Page() {
     <div className="section-shell">
       <div className="page-header">
         <h1>Room Assignments</h1>
-        <p>Assign unplaced students into rooms without changing the dormitory overview page.</p>
+        <p>Assign unplaced students into the fixed floor-based room layout.</p>
       </div>
 
       {error ? <div className="error-msg">{error}</div> : null}
@@ -106,7 +113,7 @@ export default function Page() {
         <div className="section-outline-header">
           <div>
             <h2>Assignment Workspace</h2>
-            <p>{user?.role === 'super_admin' ? 'Assign rooms across both brothers and sisters sections.' : 'Select a building and room, then assign or remove students.'}</p>
+            <p>{user?.role === 'super_admin' ? 'Assign rooms across brothers and sisters floor plans.' : 'Select a floor and room, then assign or remove students.'}</p>
           </div>
         </div>
 
@@ -114,31 +121,31 @@ export default function Page() {
           <>
             {user?.role === 'super_admin' ? (
               <div className="legend-row">
-                <button type="button" className="btn-outline" style={{ background: sectionView === 'all' ? 'var(--green)' : 'white', color: sectionView === 'all' ? 'white' : 'var(--green)' }} onClick={() => { setSectionView('all'); setActiveBuilding(null); }}>
+                <button type="button" className="btn-outline" style={{ background: sectionView === 'all' ? 'var(--green)' : 'white', color: sectionView === 'all' ? 'white' : 'var(--green)' }} onClick={() => { setSectionView('all'); setActiveFloor(null); }}>
                   Both Sections
                 </button>
-                <button type="button" className="btn-outline" style={{ background: sectionView === 'brothers' ? 'var(--green)' : 'white', color: sectionView === 'brothers' ? 'white' : 'var(--green)' }} onClick={() => { setSectionView('brothers'); setActiveBuilding(null); }}>
+                <button type="button" className="btn-outline" style={{ background: sectionView === 'brothers' ? 'var(--green)' : 'white', color: sectionView === 'brothers' ? 'white' : 'var(--green)' }} onClick={() => { setSectionView('brothers'); setActiveFloor(null); }}>
                   Brothers
                 </button>
-                <button type="button" className="btn-outline" style={{ background: sectionView === 'sisters' ? 'var(--green)' : 'white', color: sectionView === 'sisters' ? 'white' : 'var(--green)' }} onClick={() => { setSectionView('sisters'); setActiveBuilding(null); }}>
+                <button type="button" className="btn-outline" style={{ background: sectionView === 'sisters' ? 'var(--green)' : 'white', color: sectionView === 'sisters' ? 'white' : 'var(--green)' }} onClick={() => { setSectionView('sisters'); setActiveFloor(null); }}>
                   Sisters
                 </button>
               </div>
             ) : null}
 
             <div className="legend-row">
-              {visibleBuildings.map((entry) => (
+              {visibleFloors.map((entry) => (
                 <button
                   key={entry.id}
                   type="button"
                   className="btn-outline"
                   style={{
-                    background: entry.id === activeBuilding ? 'var(--green)' : 'white',
-                    color: entry.id === activeBuilding ? 'white' : 'var(--green)',
-                    borderColor: entry.id === activeBuilding ? 'var(--green)' : '#b9d4c1',
+                    background: entry.id === floor?.id ? 'var(--green)' : 'white',
+                    color: entry.id === floor?.id ? 'white' : 'var(--green)',
+                    borderColor: entry.id === floor?.id ? 'var(--green)' : '#b9d4c1',
                   }}
                   onClick={() => {
-                    setActiveBuilding(entry.id);
+                    setActiveFloor(entry.id);
                     setSelectedRoomId(entry.rooms[0]?.id || null);
                   }}
                 >
@@ -156,7 +163,7 @@ export default function Page() {
                   </div>
                 </div>
                 <div className="legend-row">
-                  {building?.rooms.map((entry) => (
+                  {floor?.rooms.map((entry) => (
                     <button
                       key={entry.id}
                       type="button"
@@ -172,20 +179,21 @@ export default function Page() {
                   ))}
                 </div>
 
-                <div className="review-stack">
-                  {room?.residents.length ? room.residents.map((resident) => (
-                    <article key={resident.id} className="review-card">
-                      <div className="review-card-head">
-                        <div>
-                          <h3>{resident.full_name || resident.email}</h3>
-                          <p>{resident.email}</p>
-                        </div>
-                        <button type="button" className="btn-danger-outline" onClick={() => unassignStudent(resident.id)} disabled={saving}>
-                          Remove
-                        </button>
+                <div className="room-bed-list assignment-bed-list">
+                  {room ? Array.from({ length: room.capacity }).map((_, index) => {
+                    const resident = room.residents[index];
+                    return (
+                      <div key={`${room.id}-${index}`} className={`room-bed-slot ${resident ? 'occupied' : 'free'}`}>
+                        <span className="bed-label">{bedLabel(index)}</span>
+                        {resident ? (
+                          <>
+                            <Link href={`/admin/profiles/${resident.id}`} className="student-name-link">{resident.full_name || resident.email}</Link>
+                            <button type="button" className="btn-danger-outline" onClick={() => unassignStudent(resident.id)} disabled={saving}>Remove</button>
+                          </>
+                        ) : <span className="table-muted">Available bed</span>}
                       </div>
-                    </article>
-                  )) : <div className="empty-state"><p>No residents in this room yet.</p></div>}
+                    );
+                  }) : <div className="empty-state"><p>Select a room first.</p></div>}
                 </div>
               </section>
 
@@ -193,24 +201,24 @@ export default function Page() {
                 <div className="section-outline-header">
                   <div>
                     <h2>Unassigned Students</h2>
-                    <p>{user?.role === 'super_admin' ? 'Unassigned students for the selected building section.' : 'Students in this section who are not yet placed into a room.'}</p>
+                    <p>{user?.role === 'super_admin' ? 'Unassigned students for the selected section floor plan.' : 'Students in this section who are not yet placed into a room.'}</p>
                   </div>
                 </div>
 
                 <div className="review-stack">
-                  {building?.unassigned.length ? building.unassigned.map((student) => (
+                  {floor?.unassigned.length ? floor.unassigned.map((student) => (
                     <article key={student.id} className="review-card">
                       <div className="review-card-head">
                         <div>
-                          <h3>{student.full_name || student.email}</h3>
+                          <h3><Link href={`/admin/profiles/${student.id}`} className="student-name-link">{student.full_name || student.email}</Link></h3>
                           <p>{student.institution || student.course || student.email}</p>
                         </div>
-                        <button type="button" className="btn-primary" style={{ width: 'auto' }} onClick={() => assignStudent(student.id)} disabled={saving || !room || (room.occupied >= room.capacity)}>
+                        <button type="button" className="btn-primary" style={{ width: 'auto' }} onClick={() => assignStudent(student.id)} disabled={saving || !room || room.occupied >= room.capacity}>
                           Assign
                         </button>
                       </div>
                     </article>
-                  )) : <div className="empty-state"><p>No unassigned students in this building section.</p></div>}
+                  )) : <div className="empty-state"><p>No unassigned students in this section.</p></div>}
                 </div>
               </section>
             </div>

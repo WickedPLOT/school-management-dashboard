@@ -1,8 +1,13 @@
 'use client';
 
 import Link from 'next/link';
+import { useRouter } from 'next/navigation';
 import { useEffect, useMemo, useState } from 'react';
 import { apiFetch } from '@/lib/api';
+import { BROTHERS_CENTER_NAME, SISTERS_CENTER_NAME } from '@/lib/centers';
+import PasswordInput from '@/components/PasswordInput';
+import ConfirmDialog from '@/components/ConfirmDialog';
+import Toast from '@/components/Toast';
 
 type SectionKey = 'brothers' | 'sisters';
 
@@ -91,7 +96,7 @@ const EMPTY_STATE: LoadState = {
 };
 
 function titleCase(section: SectionKey) {
-  return section === 'brothers' ? 'Brothers' : 'Sisters';
+  return section === 'brothers' ? BROTHERS_CENTER_NAME : SISTERS_CENTER_NAME;
 }
 
 function formatDate(value?: string) {
@@ -104,6 +109,7 @@ function formatDate(value?: string) {
 }
 
 export default function SuperAdminSectionView({ section }: { section: SectionKey }) {
+  const router = useRouter();
   const [data, setData] = useState<LoadState>(EMPTY_STATE);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
@@ -111,6 +117,8 @@ export default function SuperAdminSectionView({ section }: { section: SectionKey
   const [savingAdmin, setSavingAdmin] = useState(false);
   const [adminError, setAdminError] = useState('');
   const [adminForm, setAdminForm] = useState({ email: '', password: '' });
+  const [confirmDeactivate, setConfirmDeactivate] = useState(false);
+  const [toast, setToast] = useState<{ tone: 'success' | 'error'; message: string } | null>(null);
 
   async function load() {
     setLoading(true);
@@ -197,6 +205,7 @@ export default function SuperAdminSectionView({ section }: { section: SectionKey
       }
       setAdminForm({ email: '', password: '' });
       setShowAdminModal(false);
+      setToast({ tone: 'success', message: activeAdmin ? 'Admin account updated.' : 'Admin account assigned.' });
       await load();
     } catch (err) {
       if (err instanceof Error) setAdminError(err.message);
@@ -207,20 +216,26 @@ export default function SuperAdminSectionView({ section }: { section: SectionKey
   }
 
   async function deactivateAdmin() {
-    if (!activeAdmin || !confirm(`Deactivate the ${title.toLowerCase()} admin account?`)) return;
+    if (!activeAdmin) return;
     try {
       await apiFetch(`/admin/admins/${activeAdmin.id}`, { method: 'DELETE' });
+      setConfirmDeactivate(false);
+      setToast({ tone: 'success', message: 'Admin account deactivated.' });
       await load();
     } catch (err) {
-      if (err instanceof Error) alert(err.message);
+      setToast({ tone: 'error', message: err instanceof Error ? err.message : 'Failed to deactivate admin.' });
     }
   }
 
   return (
     <div className="section-shell">
-      <div className="page-header">
-        <h1>{title} Section</h1>
-        <p>Super-admin overview for the {title.toLowerCase()} side of the platform.</p>
+      {toast ? <Toast tone={toast.tone} message={toast.message} onClose={() => setToast(null)} /> : null}
+      <div className="page-header page-header-with-action">
+        <button type="button" className="back-arrow-btn" onClick={() => router.back()} aria-label="Go back">← Back</button>
+        <div>
+          <h1>{title}</h1>
+          <p>Super-admin overview for {title}.</p>
+        </div>
       </div>
 
       <div className="stats-grid">
@@ -235,7 +250,7 @@ export default function SuperAdminSectionView({ section }: { section: SectionKey
       <div className="content-grid" style={{ display: 'grid', gap: '1rem', gridTemplateColumns: 'repeat(auto-fit, minmax(320px, 1fr))' }}>
         <section className="content-card">
           <div className="content-card-header">
-            <h2>Section Admin</h2>
+            <h2>Center Admin</h2>
             <button className="btn-primary" style={{ width: 'auto', padding: '0.55rem 1rem' }} onClick={() => {
               setAdminError('');
               setAdminForm({ email: activeAdmin?.email || '', password: '' });
@@ -254,7 +269,7 @@ export default function SuperAdminSectionView({ section }: { section: SectionKey
                   <span className="badge" style={{ background: '#f3f4f6', color: '#374151' }}>{title} admin</span>
                 </div>
                 <div style={{ color: 'var(--muted)' }}>Assigned on {formatDate(activeAdmin.created_at)}</div>
-                <button className="btn-reject" style={{ width: 'auto' }} onClick={deactivateAdmin}>Deactivate Admin</button>
+                <button className="btn-reject" style={{ width: 'auto' }} onClick={() => setConfirmDeactivate(true)}>Deactivate Admin</button>
               </>
             ) : null}
             {!loading && !activeAdmin ? <p>No active {title.toLowerCase()} admin is assigned yet.</p> : null}
@@ -422,8 +437,7 @@ export default function SuperAdminSectionView({ section }: { section: SectionKey
               </div>
               <div className="field">
                 <label>{activeAdmin ? 'New Password' : 'Password'}</label>
-                <input
-                  type="password"
+                <PasswordInput
                   value={adminForm.password}
                   onChange={(e) => setAdminForm((current) => ({ ...current, password: e.target.value }))}
                   placeholder={activeAdmin ? 'Leave blank to keep the current password' : 'Minimum 6 characters'}
@@ -441,6 +455,9 @@ export default function SuperAdminSectionView({ section }: { section: SectionKey
             </form>
           </div>
         </div>
+      ) : null}
+      {confirmDeactivate && activeAdmin ? (
+        <ConfirmDialog title="Deactivate admin?" message={`This will deactivate ${activeAdmin.email}.`} confirmLabel="Deactivate" tone="danger" onCancel={() => setConfirmDeactivate(false)} onConfirm={deactivateAdmin} />
       ) : null}
     </div>
   );

@@ -1,66 +1,112 @@
 'use client';
-import { useEffect, useState } from 'react';
-import { apiFetch } from '@/lib/api';
-import { Icons } from '@/lib/icons';
+
 import Link from 'next/link';
+import { useEffect, useMemo, useState } from 'react';
+import { apiFetch } from '@/lib/api';
+import AnalyticsDashboard from '@/components/AnalyticsDashboard';
 
-type Stats = { pending: number; approved: number; rejected: number; incomplete: number };
+type EventRow = { id: number; title: string; location?: string; event_date: string; present_count: string; absent_count: string; };
+type Schedule = { id: number; title: string; start_time?: string; schedule_date: string; repeat_mode: string; presenter_name?: string; day_presenters?: { day_of_week: number; presenter_name?: string }[]; };
 
-export default function DashboardPage() {
-  const [stats, setStats] = useState<Stats | null>(null);
+export default function Page() {
+  const [events, setEvents] = useState<EventRow[]>([]);
+  const [schedules, setSchedules] = useState<Schedule[]>([]);
+  const [pending, setPending] = useState(0);
   const [loading, setLoading] = useState(true);
+  const today = useMemo(() => new Date().toISOString().slice(0, 10), []);
 
   useEffect(() => {
-    apiFetch('/admin/dashboard')
-      .then(setStats)
-      .catch(() => {})
-      .finally(() => setLoading(false));
+    Promise.all([
+      apiFetch('/admin/attendance/events'),
+      apiFetch('/admin/daily-schedule'),
+      apiFetch('/admin/dashboard'),
+    ]).then(([ev, sc, st]) => {
+      setEvents(Array.isArray(ev) ? ev : []);
+      setSchedules(Array.isArray(sc) ? sc : []);
+      setPending(st?.pending || 0);
+    }).finally(() => setLoading(false));
   }, []);
 
-  const cards = [
-    { label: 'Pending Approvals',    value: stats?.pending,    icon: Icons.students,  color: '#fef3c7', href: '/admin/students/pending' },
-    { label: 'Approved Students',    value: stats?.approved,   icon: Icons.students,  color: '#d1fae5', href: '/admin/students/all' },
-    { label: 'Rejected Accounts',    value: stats?.rejected,   icon: Icons.students,  color: '#fee2e2', href: '/admin/students/rejected' },
-    { label: 'Incomplete Profiles',  value: stats?.incomplete, icon: Icons.profile,   color: '#fef3c7', href: '/admin/profiles/incomplete' },
-  ];
+  const todaysEvents = useMemo(() =>
+    events.filter((e) => new Date(e.event_date).toISOString().slice(0, 10) === today),
+  [events, today]);
+
+  const todaysActivities = useMemo(() =>
+    schedules.filter((s) => s.schedule_date === today || s.repeat_mode === 'daily' || s.repeat_mode === 'weekly'),
+  [schedules, today]);
+
+  function getPresenter(a: Schedule) {
+    if (a.repeat_mode === 'weekly' && a.day_presenters?.length) {
+      const dp = a.day_presenters.find((d) => d.day_of_week === new Date().getDay());
+      return dp?.presenter_name || '—';
+    }
+    return a.presenter_name || '—';
+  }
+
+  const todayPanel = !loading && (todaysEvents.length > 0 || todaysActivities.length > 0) ? (
+    <div style={{ display: 'grid', gap: '1rem', gridTemplateColumns: 'repeat(auto-fit, minmax(340px, 1fr))', marginBottom: '1.5rem' }}>
+      <section className="section-outline" style={{ margin: 0 }}>
+        <div className="section-outline-header"><div><h2>Today&apos;s Events</h2></div></div>
+        {todaysEvents.length === 0
+          ? <p style={{ padding: '1rem', color: 'var(--muted)' }}>No events today.</p>
+          : (
+            <div className="panel-table-wrap">
+              <table className="panel-table">
+                <thead><tr><th>Event</th><th>Time</th><th>✓</th><th>✗</th><th /></tr></thead>
+                <tbody>
+                  {todaysEvents.map((e) => (
+                    <tr key={e.id}>
+                      <td><strong>{e.title}</strong>{e.location ? <div className="table-muted">{e.location}</div> : null}</td>
+                      <td>{new Date(e.event_date).toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit' })}</td>
+                      <td><span className="badge badge-approved">{e.present_count}</span></td>
+                      <td><span className="badge badge-rejected">{e.absent_count}</span></td>
+                      <td><Link href={`/admin/attendance/events/${e.id}`} className="btn-primary" style={{ padding: '0.3rem 0.7rem', fontSize: '0.78rem', textDecoration: 'none', whiteSpace: 'nowrap' }}>Register</Link></td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          )}
+      </section>
+
+      <section className="section-outline" style={{ margin: 0 }}>
+        <div className="section-outline-header"><div><h2>Today&apos;s Activities</h2></div></div>
+        {todaysActivities.length === 0
+          ? <p style={{ padding: '1rem', color: 'var(--muted)' }}>No activities today.</p>
+          : (
+            <div className="panel-table-wrap">
+              <table className="panel-table">
+                <thead><tr><th>Activity</th><th>Time</th><th>Presenter</th><th /></tr></thead>
+                <tbody>
+                  {todaysActivities.map((a) => (
+                    <tr key={a.id}>
+                      <td><strong>{a.title}</strong></td>
+                      <td>{a.start_time || '—'}</td>
+                      <td>{getPresenter(a)}</td>
+                      <td><Link href={`/admin/announcements/activity/${a.id}`} className="btn-primary" style={{ padding: '0.3rem 0.7rem', fontSize: '0.78rem', textDecoration: 'none', whiteSpace: 'nowrap' }}>Attendance</Link></td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          )}
+      </section>
+    </div>
+  ) : null;
 
   return (
-    <div>
-      <div className="page-header">
-        <h1>Dashboard</h1>
-        <p>Overview of student accounts and system activity</p>
-      </div>
-
-      <div className="stats-grid">
-        {cards.map(c => (
-          <Link key={c.label} href={c.href} style={{ textDecoration: 'none' }}>
-            <div className="stat-card" style={{ cursor: 'pointer', transition: 'transform 0.15s' }}
-              onMouseEnter={e => (e.currentTarget.style.transform = 'translateY(-2px)')}
-              onMouseLeave={e => (e.currentTarget.style.transform = 'translateY(0)')}
-            >
-              <div className="stat-icon" style={{ background: c.color }}>{c.icon}</div>
-              <div>
-                <h3>{loading ? '—' : c.value}</h3>
-                <p>{c.label}</p>
-              </div>
-            </div>
-          </Link>
-        ))}
-      </div>
-
-      <div className="content-card">
-        <div className="content-card-header">
-          <h2>Quick Actions</h2>
+    <AnalyticsDashboard
+      focus="overview"
+      title="Dashboard"
+      description="Live analytics across centers, students, accommodation, attendance, issues, programs, and communication."
+      todayPanel={todayPanel}
+      quickActions={
+        <div style={{ display: 'flex', gap: '0.5rem', flexWrap: 'wrap', alignItems: 'center' }}>
+          <Link href="/admin/announcements" className="btn-primary" style={{ width: 'auto', textDecoration: 'none', padding: '0.5rem 1rem', fontSize: '0.85rem' }}>+ Daily Activity</Link>
+          <Link href="/admin/attendance/mark" className="btn-primary" style={{ width: 'auto', textDecoration: 'none', padding: '0.5rem 1rem', fontSize: '0.85rem' }}>+ Event</Link>
+          {pending > 0 ? <Link href="/admin/students/pending" className="btn-outline" style={{ width: 'auto', textDecoration: 'none', padding: '0.5rem 1rem', fontSize: '0.85rem' }}>Pending ({pending})</Link> : null}
         </div>
-        <div style={{ padding: '1.5rem', display: 'flex', flexDirection: 'column', gap: '0.75rem' }}>
-          <Link href="/admin/registrations" className="btn-primary" style={{ width: 'auto', padding: '0.625rem 1.25rem', textAlign: 'center' }}>
-            Generate Registration Link
-          </Link>
-          <Link href="/admin/profiles" className="btn-primary" style={{ width: 'auto', padding: '0.625rem 1.25rem', textAlign: 'center', background: 'var(--green-light)', color: 'var(--green)' }}>
-            Search Student Profiles
-          </Link>
-        </div>
-      </div>
-    </div>
+      }
+    />
   );
 }

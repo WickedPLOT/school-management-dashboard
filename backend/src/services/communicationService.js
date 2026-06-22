@@ -15,15 +15,100 @@ function normalizePhone(phone) {
   return `+${digits}`;
 }
 
+function buildAfricasTalkingClient(settings) {
+  if (settings.sms_provider !== 'africastalking') {
+    throw new Error('Unsupported SMS provider');
+  }
+  if (!settings.at_username || !settings.at_api_key) {
+    throw new Error("Africa's Talking settings are incomplete");
+  }
+
+  const credentials = {
+    username: settings.at_use_sandbox ? 'sandbox' : settings.at_username,
+    apiKey: settings.at_api_key,
+  };
+
+  return createAfricasTalking(credentials);
+}
+
+function parseBalanceValue(rawBalance, fallbackCurrency = 'KES') {
+  if (rawBalance == null) return { amount: null, currency: fallbackCurrency, raw: null };
+
+  const raw = String(rawBalance).trim();
+  const match = raw.match(/^([A-Z]{3})\s+(-?[\d,.]+)$/i);
+  if (match) {
+    return {
+      currency: match[1].toUpperCase(),
+      amount: Number(match[2].replace(/,/g, '')),
+      raw,
+    };
+  }
+
+  const numeric = Number(raw.replace(/,/g, ''));
+  if (Number.isFinite(numeric)) {
+    return {
+      currency: fallbackCurrency,
+      amount: numeric,
+      raw,
+    };
+  }
+
+  return { amount: null, currency: fallbackCurrency, raw };
+}
+
+async function attachLiveBalance(settings) {
+  const response = {
+    ...settings,
+    live_balance: null,
+    live_balance_currency: settings.at_balance_currency || 'KES',
+    live_balance_raw: null,
+    live_balance_source: 'unavailable',
+    live_balance_error: null,
+  };
+
+  if (!settings.at_username || !settings.at_api_key) {
+    if (settings.at_credit_balance != null) {
+      response.live_balance = Number(settings.at_credit_balance);
+      response.live_balance_source = 'cached';
+    }
+    return response;
+  }
+
+  try {
+    const application = buildAfricasTalkingClient(settings).APPLICATION;
+    const appData = await application.fetchApplicationData();
+    const rawBalance = appData?.UserData?.balance ?? appData?.balance ?? null;
+    const parsed = parseBalanceValue(rawBalance, settings.at_balance_currency || 'KES');
+
+    response.live_balance = parsed.amount;
+    response.live_balance_currency = parsed.currency;
+    response.live_balance_raw = parsed.raw;
+    response.live_balance_source = parsed.amount == null ? 'provider-unparsed' : 'provider';
+
+    if (parsed.amount == null && settings.at_credit_balance != null) {
+      response.live_balance = Number(settings.at_credit_balance);
+      response.live_balance_source = 'cached';
+    }
+  } catch (err) {
+    response.live_balance_error = err instanceof Error ? err.message : 'Could not fetch wallet balance';
+    if (settings.at_credit_balance != null) {
+      response.live_balance = Number(settings.at_credit_balance);
+      response.live_balance_source = 'cached';
+    }
+  }
+
+  return response;
+}
+
 async function getCommunicationSettings() {
   const result = await pool.query('SELECT * FROM communication_settings WHERE id=1');
-  return result.rows[0];
+  return attachLiveBalance(result.rows[0]);
 }
 
 async function updateCommunicationSettings(payload, userId) {
   const fields = [
     'sms_enabled', 'sms_provider', 'at_username', 'at_api_key', 'at_sender_id', 'at_use_sandbox',
-    'at_wallet_reference', 'at_balance_currency', 'at_credit_balance', 'at_topup_notes',
+    'at_paybill_number', 'at_wallet_reference', 'at_balance_currency', 'at_credit_balance', 'at_topup_notes',
     'email_enabled', 'smtp_host', 'smtp_port', 'smtp_secure', 'smtp_user', 'smtp_pass',
     'smtp_from_name', 'smtp_from_email',
   ];
@@ -41,7 +126,7 @@ async function updateCommunicationSettings(payload, userId) {
 
   updates.push(`updated_by=$${position++}`);
   values.push(userId);
-  updates.push(`updated_at=NOW()`);
+  updates.push('updated_at=NOW()');
   values.push(1);
 
   const result = await pool.query(
@@ -49,7 +134,7 @@ async function updateCommunicationSettings(payload, userId) {
     values
   );
 
-  return result.rows[0];
+  return attachLiveBalance(result.rows[0]);
 }
 
 function buildEmailTransport(settings) {
@@ -75,25 +160,14 @@ function buildSmsClient(settings) {
   if (!settings.sms_enabled) {
     throw new Error('SMS delivery is disabled in communication settings');
   }
-  if (settings.sms_provider !== 'africastalking') {
-    throw new Error('Unsupported SMS provider');
-  }
-  if (!settings.at_username || !settings.at_api_key) {
-    throw new Error("Africa's Talking settings are incomplete");
-  }
 
-  const credentials = {
-    username: settings.at_use_sandbox ? 'sandbox' : settings.at_username,
-    apiKey: settings.at_api_key,
-  };
-
-  return createAfricasTalking(credentials).SMS;
+  return buildAfricasTalkingClient(settings).SMS;
 }
 
 async function sendEmail(settings, recipient, subject, message, purpose = 'official communication') {
   const transporter = buildEmailTransport(settings);
-  const fromName = settings.smtp_from_name || 'Hayrat Centre';
-  const subjectLine = subject || 'Hayrat Centre Notification';
+  const fromName = settings.smtp_from_name || 'Centre of Suffa';
+  const subjectLine = subject || 'Centre of Suffa Notification';
   const info = await transporter.sendMail({
     from: `"${fromName}" <${settings.smtp_from_email}>`,
     to: recipient.email,
@@ -106,6 +180,17 @@ async function sendEmail(settings, recipient, subject, message, purpose = 'offic
   });
 
   return { externalId: info.messageId || null };
+}
+
+async function sendTransactionalEmail(payload) {
+  const settings = await getCommunicationSettings();
+  return sendEmail(
+    settings,
+    { email: payload.email, name: payload.name || payload.email },
+    payload.subject,
+    payload.message,
+    payload.purpose || 'official communication'
+  );
 }
 
 async function sendSms(settings, recipient, message) {
@@ -168,6 +253,123 @@ async function listMessageHistory(req) {
     params
   );
   return result.rows;
+}
+
+async function sendDirectMessage(req, payload) {
+  const settings = await getCommunicationSettings();
+  const recipientUserId = Number(payload.recipientUserId);
+  const recipientType = payload.recipientType;
+  const channel = payload.channel;
+  const subject = payload.subject?.trim() || null;
+  const message = payload.message?.trim();
+
+  if (!recipientUserId) throw new Error('Recipient is required');
+  if (!['student', 'parent'].includes(recipientType)) throw new Error('Invalid recipient type');
+  if (!message) throw new Error('Message body is required');
+  if (!['sms', 'email', 'both'].includes(channel)) throw new Error('Invalid channel');
+  if ((channel === 'email' || channel === 'both') && !subject) throw new Error('Email subject is required');
+
+  const { clause, params, scope } = sectionFilter(req);
+  const recipientResult = await pool.query(
+    `SELECT u.id AS user_id, u.email, u.section, p.full_name, p.phone, g.parent_name, g.parent_phone, g.parent_email
+     FROM users u
+     LEFT JOIN profiles p ON p.user_id = u.id
+     LEFT JOIN guardian_contacts g ON g.user_id = u.id
+     WHERE u.role='student' AND u.status='approved' AND u.id=$${params.length + 1}${clause}`,
+    [recipientUserId, ...params]
+  );
+
+  if (!recipientResult.rows.length) throw new Error('Recipient not found');
+
+  const row = recipientResult.rows[0];
+  const recipient = recipientType === 'student'
+    ? { userId: row.user_id, name: row.full_name || row.email, email: row.email, phone: row.phone }
+    : { userId: row.user_id, name: row.parent_name || `Parent of ${row.full_name || row.email}`, email: row.parent_email, phone: row.parent_phone };
+
+  const audience = recipientType === 'student' ? 'students' : 'parents';
+  const broadcastResult = await pool.query(
+    `INSERT INTO message_broadcasts (audience, channel, section_scope, subject, message, created_by)
+     VALUES ($1,$2,$3,$4,$5,$6) RETURNING *`,
+    [audience, channel, scope, subject, message, req.user.id]
+  );
+  const broadcast = broadcastResult.rows[0];
+
+  let successCount = 0;
+  let failureCount = 0;
+  const desiredChannels = channel === 'both' ? ['email', 'sms'] : [channel];
+
+  for (const desiredChannel of desiredChannels) {
+    const delivery = {
+      broadcast_id: broadcast.id,
+      user_id: recipient.userId,
+      recipient_type: recipientType,
+      channel: desiredChannel,
+      provider: desiredChannel === 'sms' ? 'africastalking' : 'smtp',
+      recipient_name: recipient.name,
+      recipient_email: recipient.email || null,
+      recipient_phone: normalizePhone(recipient.phone),
+    };
+
+    try {
+      let externalId = null;
+      if (desiredChannel === 'email') {
+        if (!recipient.email) throw new Error('Recipient email is missing');
+        const result = await sendEmail(settings, recipient, subject, message);
+        externalId = result.externalId;
+      } else {
+        if (!recipient.phone) throw new Error('Recipient phone is missing');
+        const result = await sendSms(settings, recipient, message);
+        externalId = result.externalId;
+      }
+
+      successCount += 1;
+      await pool.query(
+        `INSERT INTO message_deliveries
+          (broadcast_id, user_id, recipient_type, channel, provider, recipient_name, recipient_email, recipient_phone, external_id, status)
+         VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,'sent')`,
+        [
+          delivery.broadcast_id,
+          delivery.user_id,
+          delivery.recipient_type,
+          delivery.channel,
+          delivery.provider,
+          delivery.recipient_name,
+          delivery.recipient_email,
+          delivery.recipient_phone,
+          externalId,
+        ]
+      );
+    } catch (err) {
+      failureCount += 1;
+      await pool.query(
+        `INSERT INTO message_deliveries
+          (broadcast_id, user_id, recipient_type, channel, provider, recipient_name, recipient_email, recipient_phone, status, error_message)
+         VALUES ($1,$2,$3,$4,$5,$6,$7,$8,'failed',$9)`,
+        [
+          delivery.broadcast_id,
+          delivery.user_id,
+          delivery.recipient_type,
+          delivery.channel,
+          delivery.provider,
+          delivery.recipient_name,
+          delivery.recipient_email,
+          delivery.recipient_phone,
+          err instanceof Error ? err.message : 'Delivery failed',
+        ]
+      );
+    }
+  }
+
+  const status = successCount === 0 ? 'failed' : failureCount > 0 ? 'partial' : 'sent';
+  const updated = await pool.query(
+    `UPDATE message_broadcasts
+     SET recipient_count=$1, success_count=$2, failure_count=$3, status=$4
+     WHERE id=$5
+     RETURNING *`,
+    [1, successCount, failureCount, status, broadcast.id]
+  );
+
+  return updated.rows[0];
 }
 
 async function sendBroadcast(req, payload) {
@@ -319,7 +521,7 @@ async function issueVerificationCode(email, purpose) {
   await sendEmail(
     settings,
     { email, name: email },
-    `Your Hayrat Centre ${purpose} code`,
+    `Your Centre of Suffa ${purpose} code`,
     `Your verification code is ${code}. It expires in 10 minutes.`,
     'verification-code'
   );
@@ -354,6 +556,8 @@ module.exports = {
   getAudienceSummary,
   listMessageHistory,
   sendBroadcast,
+  sendDirectMessage,
+  sendTransactionalEmail,
   issueVerificationCode,
   verifyCode,
   normalizePhone,

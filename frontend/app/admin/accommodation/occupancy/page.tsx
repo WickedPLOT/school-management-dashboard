@@ -2,6 +2,7 @@
 
 import { useEffect, useMemo, useState } from 'react';
 import { apiFetch } from '@/lib/api';
+import { BROTHERS_CENTER_NAME, SISTERS_CENTER_NAME } from '@/lib/centers';
 
 type Building = {
   id: number;
@@ -25,15 +26,15 @@ export default function Page() {
   }, []);
 
   const sections = useMemo(() => ([
-    { key: 'brothers', label: 'Brothers', items: buildings.filter((b) => b.section_scope === 'brothers') },
-    { key: 'sisters', label: 'Sisters', items: buildings.filter((b) => b.section_scope === 'sisters') },
+    { key: 'brothers', label: BROTHERS_CENTER_NAME, items: buildings.filter((b) => b.section_scope === 'brothers') },
+    { key: 'sisters', label: SISTERS_CENTER_NAME, items: buildings.filter((b) => b.section_scope === 'sisters') },
   ]), [buildings]);
 
   return (
     <div className="section-shell">
       <div className="page-header">
         <h1>Occupancy Overview</h1>
-        <p>Cross-section occupancy view for brothers and sisters dormitories.</p>
+        <p>Cross-center occupancy view for dormitories.</p>
       </div>
 
       {loading ? <div className="empty-state"><p>Loading occupancy...</p></div> : null}

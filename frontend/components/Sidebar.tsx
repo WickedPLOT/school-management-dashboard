@@ -11,9 +11,11 @@ type Props = {
   email?: string;
   role?: string;
   onNavClick?: () => void;
+  collapsed?: boolean;
+  brandName?: string;
 };
 
-export default function Sidebar({ groups, badge, email, role, onNavClick }: Props) {
+export default function Sidebar({ groups, badge, email, role, onNavClick, collapsed = false, brandName = 'HAYRAT Centers' }: Props) {
   const pathname = usePathname();
   const router = useRouter();
   const titledGroupKeys = useMemo(
@@ -56,12 +58,14 @@ export default function Sidebar({ groups, badge, email, role, onNavClick }: Prop
       <div className="sidebar-brand">
         <div className="brand-icon">{Icons.logo}</div>
         <div>
-          <h2>Hayrat Centre</h2>
-          <span>{roleLabel}</span>
+          {!collapsed ? (<>
+            <h2>{brandName}</h2>
+            <span>{roleLabel}</span>
+          </>) : null}
         </div>
       </div>
 
-      {badge && <div className="sidebar-section-badge">{badge}</div>}
+      {badge && !collapsed ? <div className="sidebar-section-badge">{badge}</div> : null}
 
       <nav className="sidebar-nav">
         {groups.map((group, gi) => (
@@ -75,9 +79,9 @@ export default function Sidebar({ groups, badge, email, role, onNavClick }: Prop
                 >
                   <span className="nav-group-toggle-left">
                     {group.items[0]?.icon}
-                    <span>{group.title}</span>
+                    {!collapsed ? <span>{group.title}</span> : null}
                   </span>
-                  <svg
+                  {!collapsed ? <svg
                     className={`nav-group-chevron ${openGroups[group.title] ? 'open' : ''}`}
                     width="14"
                     height="14"
@@ -89,9 +93,9 @@ export default function Sidebar({ groups, badge, email, role, onNavClick }: Prop
                     strokeLinejoin="round"
                   >
                     <polyline points="6 9 12 15 18 9" />
-                  </svg>
+                  </svg> : null}
                 </button>
-                {openGroups[group.title] && (
+                {!collapsed && openGroups[group.title] && (
                   <div className="nav-group-children">
                     {group.items.map((item) => (
                       <Link
@@ -101,7 +105,7 @@ export default function Sidebar({ groups, badge, email, role, onNavClick }: Prop
                         className={`nav-item nav-child-item ${pathname === item.href ? 'active' : ''}`}
                       >
                         {item.icon}
-                        <span>{item.label}</span>
+                        {!collapsed ? <span>{item.label}</span> : null}
                       </Link>
                     ))}
                   </div>
@@ -116,7 +120,7 @@ export default function Sidebar({ groups, badge, email, role, onNavClick }: Prop
                   className={`nav-item ${pathname === item.href ? 'active' : ''}`}
                 >
                   {item.icon}
-                  <span>{item.label}</span>
+                  {!collapsed ? <span>{item.label}</span> : null}
                 </Link>
               ))
             )}
@@ -125,10 +129,10 @@ export default function Sidebar({ groups, badge, email, role, onNavClick }: Prop
       </nav>
 
       <div className="sidebar-footer">
-        {email && <p className="sidebar-email">{email}</p>}
+        {email && !collapsed ? <p className="sidebar-email">{email}</p> : null}
         <button onClick={logout} className="nav-item nav-item-logout">
           {Icons.logout}
-          <span>Logout</span>
+          {!collapsed ? <span>Logout</span> : null}
         </button>
       </div>
     </>

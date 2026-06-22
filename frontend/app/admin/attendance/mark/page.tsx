@@ -3,6 +3,7 @@
 import Link from 'next/link';
 import { useEffect, useMemo, useState } from 'react';
 import { apiFetch } from '@/lib/api';
+import { BROTHERS_CENTER_NAME, SISTERS_CENTER_NAME } from '@/lib/centers';
 
 type EventRow = {
   id: number;
@@ -36,7 +37,7 @@ export default function Page() {
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState('');
-  const [user, setUser] = useState<{ role: string } | null>(null);
+  const [user, setUser] = useState<{ role: string; section?: 'brothers' | 'sisters' } | null>(null);
   const [sectionView, setSectionView] = useState<'all' | 'brothers' | 'sisters'>('all');
 
   async function load() {
@@ -46,9 +47,14 @@ export default function Page() {
         apiFetch('/admin/settings'),
       ]);
       setEvents(eventData);
+      const storedUser = typeof window !== 'undefined' ? localStorage.getItem('user') : null;
+      const parsedUser = storedUser ? JSON.parse(storedUser) : null;
+      const nextScope = parsedUser?.role === 'super_admin'
+        ? ((settings as Settings).default_event_section_scope || 'brothers')
+        : (parsedUser?.section || 'brothers');
       setForm((current) => ({
         ...current,
-        section_scope: (settings as Settings).default_event_section_scope || 'brothers',
+        section_scope: nextScope,
       }));
     } catch (err) {
       if (err instanceof Error) setError(err.message);
@@ -113,10 +119,10 @@ export default function Page() {
                 Both Sections
               </button>
               <button type="button" className="btn-outline" style={{ background: sectionView === 'brothers' ? 'var(--green)' : 'white', color: sectionView === 'brothers' ? 'white' : 'var(--green)' }} onClick={() => setSectionView('brothers')}>
-                Brothers
+                {BROTHERS_CENTER_NAME}
               </button>
               <button type="button" className="btn-outline" style={{ background: sectionView === 'sisters' ? 'var(--green)' : 'white', color: sectionView === 'sisters' ? 'white' : 'var(--green)' }} onClick={() => setSectionView('sisters')}>
-                Sisters
+                {SISTERS_CENTER_NAME}
               </button>
             </div>
           ) : null}
@@ -192,11 +198,15 @@ export default function Page() {
             </div>
             <div className="field">
               <label>Section Scope</label>
-              <select value={form.section_scope} onChange={(e) => setForm((current) => ({ ...current, section_scope: e.target.value }))}>
-                <option value="brothers">Brothers</option>
-                <option value="sisters">Sisters</option>
-                <option value="all">Both Sections</option>
-              </select>
+              {user?.role === 'super_admin' ? (
+                <select value={form.section_scope} onChange={(e) => setForm((current) => ({ ...current, section_scope: e.target.value }))}>
+                  <option value="brothers">{BROTHERS_CENTER_NAME}</option>
+                  <option value="sisters">{SISTERS_CENTER_NAME}</option>
+                  <option value="all">Both Sections</option>
+                </select>
+              ) : (
+                <input value={user?.section === 'sisters' ? SISTERS_CENTER_NAME : BROTHERS_CENTER_NAME} disabled />
+              )}
             </div>
             {error && <div className="error-msg">{error}</div>}
             <button type="submit" className="btn-primary" disabled={saving}>

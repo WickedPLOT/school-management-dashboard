@@ -1,4 +1,8 @@
 const MOCK_USERS: Record<string, { token: string; user: { id: number; email: string; role: string; section: string } }> = {
+  'superadmin@hayrat.com': {
+    token: 'mock-token',
+    user: { id: 0, email: 'superadmin@hayrat.com', role: 'super_admin', section: 'brothers' },
+  },
   'brothers.admin@hayrat.com': {
     token: 'mock-token',
     user: { id: 1, email: 'brothers.admin@hayrat.com', role: 'brothers_admin', section: 'brothers' },
@@ -14,6 +18,7 @@ const MOCK_USERS: Record<string, { token: string; user: { id: number; email: str
 };
 
 const MOCK_PASSWORDS: Record<string, string> = {
+  'superadmin@hayrat.com': 'superadmin123',
   'brothers.admin@hayrat.com': 'admin123',
   'sisters.admin@hayrat.com': 'admin123',
   'student@hayrat.com': 'student123',

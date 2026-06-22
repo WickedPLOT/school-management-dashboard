@@ -19,7 +19,7 @@ export default function RejectedStudentsPage() {
     try {
       await apiFetch(`/admin/approve/${id}`, { method: 'PATCH' });
       setStudents(s => s.filter(x => x.id !== id));
-    } catch (e: any) { alert(e.message); }
+    } catch (e: any) { setError(e.message); }
   }
 
   useEffect(() => { load(); }, []);

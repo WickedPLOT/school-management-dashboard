@@ -41,6 +41,69 @@ async function listStudentUpdates(req, res) {
   }
 }
 
+async function getStudentMonthlyPerformance(req, res) {
+  const { id } = req.params;
+  try {
+    const student = await pool.query(
+      `SELECT id, section FROM users WHERE id=$1 AND role='student'`,
+      [id]
+    );
+    if (!student.rows.length) return res.status(404).json({ error: 'Student not found' });
+    if (req.user.role !== 'super_admin' && student.rows[0].section !== req.user.section) {
+      return res.status(403).json({ error: 'Forbidden' });
+    }
+
+    const result = await pool.query(
+      `WITH months AS (
+         SELECT generate_series(
+           date_trunc('month', CURRENT_DATE) - INTERVAL '5 months',
+           date_trunc('month', CURRENT_DATE),
+           INTERVAL '1 month'
+         ) AS month_start
+       ), tracks AS (
+         SELECT unnest(ARRAY['academic','religious','activity']) AS track
+       ), scores AS (
+         SELECT date_trunc('month', created_at) AS month_start,
+                track,
+                ROUND(AVG(COALESCE(progress_score, 0))::numeric, 1) AS score,
+                COUNT(*) AS update_count
+         FROM student_updates
+         WHERE user_id = $1
+           AND track IN ('academic','religious','activity')
+           AND created_at >= date_trunc('month', CURRENT_DATE) - INTERVAL '5 months'
+         GROUP BY date_trunc('month', created_at), track
+       )
+       SELECT to_char(m.month_start, 'Mon YYYY') AS month_label,
+              to_char(m.month_start, 'YYYY-MM') AS month_key,
+              t.track,
+              COALESCE(s.score, 0) AS score,
+              COALESCE(s.update_count, 0) AS update_count
+       FROM months m
+       CROSS JOIN tracks t
+       LEFT JOIN scores s ON s.month_start = m.month_start AND s.track = t.track
+       ORDER BY m.month_start ASC, t.track ASC`,
+      [id]
+    );
+
+    const months = [];
+    const monthMap = new Map();
+    for (const row of result.rows) {
+      if (!monthMap.has(row.month_key)) {
+        const month = { month: row.month_key, label: row.month_label, academic: 0, religious: 0, activity: 0, counts: { academic: 0, religious: 0, activity: 0 } };
+        monthMap.set(row.month_key, month);
+        months.push(month);
+      }
+      const month = monthMap.get(row.month_key);
+      month[row.track] = Number(row.score || 0);
+      month.counts[row.track] = Number(row.update_count || 0);
+    }
+
+    res.json({ months });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+}
+
 async function reviewStudentUpdate(req, res) {
   const { id } = req.params;
   const { admin_note, progress_score, review_status = 'reviewed' } = req.body;
@@ -51,6 +114,7 @@ async function reviewStudentUpdate(req, res) {
   const client = await pool.connect();
   try {
     await client.query('BEGIN');
+    const reviewedAt = review_status === 'reviewed' ? new Date() : null;
     const existing = await client.query(
       `SELECT su.id, su.user_id, su.title, u.section
        FROM student_updates su
@@ -73,10 +137,10 @@ async function reviewStudentUpdate(req, res) {
            progress_score = $2,
            review_status = $3,
            reviewed_by = $4,
-           reviewed_at = CASE WHEN $3 = 'reviewed' THEN NOW() ELSE NULL END
-       WHERE id = $5
+           reviewed_at = $5
+       WHERE id = $6
        RETURNING *`,
-      [admin_note?.trim() || null, progress_score ?? null, review_status, req.user.id, id]
+      [admin_note?.trim() || null, progress_score ?? null, review_status, req.user.id, reviewedAt, id]
     );
 
     await createNotification(
@@ -444,8 +508,102 @@ async function listStudentResources(req, res) {
   }
 }
 
+async function getMyReadingProgress(req, res) {
+  if (req.user.role !== 'student') return res.status(403).json({ error: 'Students only' });
+  try {
+    const result = await pool.query(
+      `SELECT rp.*, kr.title AS resource_title, kr.category AS resource_category,
+              kr.file_name, kr.resource_type
+       FROM reading_progress rp
+       JOIN knowledge_resources kr ON kr.id = rp.resource_id
+       WHERE rp.user_id = $1
+       ORDER BY rp.updated_at DESC`,
+      [req.user.id]
+    );
+    res.json(result.rows);
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+}
+
+async function updateMyReadingProgress(req, res) {
+  if (req.user.role !== 'student') return res.status(403).json({ error: 'Students only' });
+  const { resource_id, progress, status, pages_read, total_pages, notes } = req.body;
+  if (!resource_id) return res.status(400).json({ error: 'resource_id is required' });
+
+  try {
+    const existing = await pool.query(
+      `SELECT id FROM reading_progress WHERE resource_id = $1 AND user_id = $2`,
+      [resource_id, req.user.id]
+    );
+
+    let result;
+    if (existing.rows.length) {
+      result = await pool.query(
+        `UPDATE reading_progress
+         SET progress = COALESCE($1, progress),
+             status = COALESCE($2, status),
+             pages_read = COALESCE($3, pages_read),
+             total_pages = COALESCE($4, total_pages),
+             notes = COALESCE($5, notes),
+             updated_at = NOW()
+         WHERE id = $6
+         RETURNING *`,
+        [progress ?? null, status || null, pages_read ?? null, total_pages ?? null, notes ?? null, existing.rows[0].id]
+      );
+    } else {
+      result = await pool.query(
+        `INSERT INTO reading_progress (resource_id, user_id, progress, status, pages_read, total_pages, notes)
+         VALUES ($1,$2,$3,$4,$5,$6,$7)
+         RETURNING *`,
+        [resource_id, req.user.id, progress ?? 0, status || 'reading', pages_read ?? 0, total_pages ?? null, notes ?? null]
+      );
+    }
+
+    res.json(result.rows[0]);
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+}
+
+async function getAdminReadingProgress(req, res) {
+  try {
+    const { resource_id, student_id } = req.query;
+    const { clause, params: sectionParams } = adminSectionFilter(req, 'u');
+    const filters = [...sectionParams];
+    let whereClause = '';
+
+    if (resource_id) {
+      filters.push(resource_id);
+      whereClause += ` AND rp.resource_id = $${filters.length}`;
+    }
+    if (student_id) {
+      filters.push(student_id);
+      whereClause += ` AND rp.user_id = $${filters.length}`;
+    }
+
+    const result = await pool.query(
+      `SELECT rp.*,
+              kr.title AS resource_title, kr.category AS resource_category,
+              kr.file_name, kr.resource_type,
+              u.email, p.full_name, u.section
+       FROM reading_progress rp
+       JOIN knowledge_resources kr ON kr.id = rp.resource_id
+       JOIN users u ON u.id = rp.user_id
+       LEFT JOIN profiles p ON p.user_id = u.id
+        WHERE u.role='student'${clause}${whereClause}
+        ORDER BY rp.updated_at DESC`,
+      filters
+    );
+    res.json(result.rows);
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+}
+
 module.exports = {
   listStudentUpdates,
+  getStudentMonthlyPerformance,
   reviewStudentUpdate,
   listMyUpdates,
   createMyUpdate,
@@ -460,4 +618,7 @@ module.exports = {
   updateResource,
   deleteResource,
   listStudentResources,
+  getMyReadingProgress,
+  updateMyReadingProgress,
+  getAdminReadingProgress,
 };

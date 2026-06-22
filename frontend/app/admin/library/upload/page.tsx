@@ -1,7 +1,8 @@
 'use client';
 
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { apiFetch } from '@/lib/api';
+import { BROTHERS_CENTER_NAME, SISTERS_CENTER_NAME } from '@/lib/centers';
 
 type ResourceType = 'link' | 'file' | 'note';
 
@@ -29,10 +30,18 @@ function fileToDataUrl(file: File) {
 }
 
 export default function Page() {
+  const [user, setUser] = useState<{ role: string; section: 'brothers' | 'sisters' } | null>(null);
   const [form, setForm] = useState(DEFAULT_FORM);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState('');
   const [success, setSuccess] = useState('');
+
+  useEffect(() => {
+    try {
+      const stored = localStorage.getItem('user');
+      if (stored) setUser(JSON.parse(stored));
+    } catch {}
+  }, []);
 
   async function onFileChange(e: React.ChangeEvent<HTMLInputElement>) {
     const file = e.target.files?.[0];
@@ -113,11 +122,15 @@ export default function Page() {
 
           <div className="field">
             <label>Section Scope</label>
-            <select value={form.section_scope} onChange={(e) => setForm((current) => ({ ...current, section_scope: e.target.value }))}>
-              <option value="all">Both Sections</option>
-              <option value="brothers">Brothers</option>
-              <option value="sisters">Sisters</option>
-            </select>
+            {user?.role === 'super_admin' ? (
+              <select value={form.section_scope} onChange={(e) => setForm((current) => ({ ...current, section_scope: e.target.value }))}>
+                <option value="all">Both Centers</option>
+                <option value="brothers">{BROTHERS_CENTER_NAME}</option>
+                <option value="sisters">{SISTERS_CENTER_NAME}</option>
+              </select>
+            ) : (
+              <input value={user?.section === 'sisters' ? SISTERS_CENTER_NAME : BROTHERS_CENTER_NAME} disabled />
+            )}
           </div>
 
           {form.resource_type === 'link' ? (

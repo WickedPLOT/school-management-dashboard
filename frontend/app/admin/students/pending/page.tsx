@@ -46,7 +46,7 @@ export default function PendingApprovalsPage() {
       setUsers((current) => current.filter((user) => user.id !== id));
       setSelected((current) => current.filter((value) => value !== id));
     } catch (e) {
-      if (e instanceof Error) alert(e.message);
+      if (e instanceof Error) setError(e.message);
     }
   }
 
@@ -57,7 +57,7 @@ export default function PendingApprovalsPage() {
       setUsers((current) => current.filter((user) => !selected.includes(user.id)));
       setSelected([]);
     } catch (e) {
-      if (e instanceof Error) alert(e.message);
+      if (e instanceof Error) setError(e.message);
     }
   }
 

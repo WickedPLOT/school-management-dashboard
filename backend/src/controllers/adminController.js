@@ -1,4 +1,70 @@
 const pool = require('../config/db');
+const DOCUMENT_TYPES = ['passport_document', 'id_front', 'id_back', 'good_conduct', 'other_document'];
+
+async function ensureStudentDocumentsTable(clientOrPool = pool) {
+  await clientOrPool.query(`CREATE TABLE IF NOT EXISTS student_documents (
+    id SERIAL PRIMARY KEY,
+    user_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+    document_type VARCHAR(50) NOT NULL,
+    file_name VARCHAR(255),
+    mime_type VARCHAR(120),
+    file_data TEXT,
+    review_status VARCHAR(30) NOT NULL DEFAULT 'submitted' CHECK (review_status IN ('submitted','approved','rejected')),
+    review_note TEXT,
+    reviewed_by INTEGER REFERENCES users(id) ON DELETE SET NULL,
+    reviewed_at TIMESTAMPTZ,
+    created_at TIMESTAMPTZ DEFAULT NOW(),
+    updated_at TIMESTAMPTZ DEFAULT NOW(),
+    UNIQUE(user_id, document_type)
+  )`);
+}
+
+function normalizeDocuments(body = {}) {
+  const docs = Array.isArray(body.documents) ? body.documents : [];
+  for (const type of DOCUMENT_TYPES) {
+    const file_data = body[`${type}_data`];
+    if (file_data) docs.push({
+      document_type: type,
+      file_name: body[`${type}_name`] || type,
+      mime_type: body[`${type}_mime`] || null,
+      file_data,
+    });
+  }
+  return docs.filter((doc) => DOCUMENT_TYPES.includes(doc.document_type) && doc.file_data);
+}
+
+async function saveStudentDocuments(client, userId, body = {}) {
+  await ensureStudentDocumentsTable(client);
+  const docs = normalizeDocuments(body);
+  for (const doc of docs) {
+    await client.query(
+      `INSERT INTO student_documents (user_id, document_type, file_name, mime_type, file_data, updated_at)
+       VALUES ($1,$2,$3,$4,$5,NOW())
+       ON CONFLICT (user_id, document_type) DO UPDATE SET
+         file_name=EXCLUDED.file_name,
+         mime_type=EXCLUDED.mime_type,
+         file_data=EXCLUDED.file_data,
+         review_status='submitted',
+         review_note=NULL,
+         reviewed_by=NULL,
+         reviewed_at=NULL,
+         updated_at=NOW()`,
+      [userId, doc.document_type, doc.file_name || doc.document_type, doc.mime_type || null, doc.file_data]
+    );
+  }
+}
+
+async function listStudentDocuments(userId) {
+  await ensureStudentDocumentsTable(pool);
+  const result = await pool.query(
+    `SELECT id, document_type, file_name, mime_type, file_data, review_status, review_note, reviewed_at, created_at, updated_at
+     FROM student_documents
+     WHERE user_id=$1
+     ORDER BY document_type ASC`,
+    [userId]
+  );
+  return result.rows;
+}
 
 // ── helpers ──────────────────────────────────────────────────────────────────
 function sectionFilter(req, alias = 'u') {
@@ -13,8 +79,9 @@ async function getPendingUsers(req, res) {
   try {
     const r = await pool.query(
       `SELECT u.id, u.email, u.section, u.status, u.created_at,
-              p.full_name, p.gender, p.phone, g.parent_name, g.parent_phone, g.parent_email, p.institution, p.course
+              p.full_name, p.gender, p.phone, sx.nationality, sx.country, sx.county, sx.sub_county, sx.entry_date, g.parent_name, g.parent_phone, g.parent_email, g.alt_student_phone, g.alt_parent_phone, g.emergency_contact_1_name, g.emergency_contact_1_phone, g.emergency_contact_1_relation, g.emergency_contact_2_name, g.emergency_contact_2_phone, g.emergency_contact_2_relation, p.institution, p.course
        FROM users u LEFT JOIN profiles p ON p.user_id = u.id
+       LEFT JOIN student_profile_extensions sx ON sx.user_id = u.id
        LEFT JOIN guardian_contacts g ON g.user_id = u.id
        WHERE u.status='pending' AND u.role='student'${clause}
        ORDER BY u.created_at DESC`,
@@ -29,8 +96,9 @@ async function getAllStudents(req, res) {
   try {
     const r = await pool.query(
       `SELECT u.id, u.email, u.section, u.status, u.created_at,
-              p.full_name, p.gender, p.phone, g.parent_name, g.parent_phone, g.parent_email, p.institution, p.course
+              p.full_name, p.gender, p.phone, sx.nationality, sx.country, sx.county, sx.sub_county, sx.entry_date, g.parent_name, g.parent_phone, g.parent_email, g.alt_student_phone, g.alt_parent_phone, g.emergency_contact_1_name, g.emergency_contact_1_phone, g.emergency_contact_1_relation, g.emergency_contact_2_name, g.emergency_contact_2_phone, g.emergency_contact_2_relation, p.institution, p.course
        FROM users u LEFT JOIN profiles p ON p.user_id = u.id
+       LEFT JOIN student_profile_extensions sx ON sx.user_id = u.id
        LEFT JOIN guardian_contacts g ON g.user_id = u.id
        WHERE u.role='student' AND u.status='approved'${clause}
        ORDER BY p.full_name ASC`,
@@ -45,8 +113,9 @@ async function getRejectedStudents(req, res) {
   try {
     const r = await pool.query(
       `SELECT u.id, u.email, u.section, u.status, u.created_at,
-              p.full_name, p.gender, p.phone, g.parent_name, g.parent_phone, g.parent_email, p.institution, p.course
+              p.full_name, p.gender, p.phone, sx.nationality, sx.country, sx.county, sx.sub_county, sx.entry_date, g.parent_name, g.parent_phone, g.parent_email, g.alt_student_phone, g.alt_parent_phone, g.emergency_contact_1_name, g.emergency_contact_1_phone, g.emergency_contact_1_relation, g.emergency_contact_2_name, g.emergency_contact_2_phone, g.emergency_contact_2_relation, p.institution, p.course
        FROM users u LEFT JOIN profiles p ON p.user_id = u.id
+       LEFT JOIN student_profile_extensions sx ON sx.user_id = u.id
        LEFT JOIN guardian_contacts g ON g.user_id = u.id
        WHERE u.role='student' AND u.status='rejected'${clause}
        ORDER BY u.created_at DESC`,
@@ -79,10 +148,11 @@ async function searchProfiles(req, res) {
   const search = `%${q}%`;
   try {
     const r = await pool.query(
-      `SELECT u.id, u.email, u.section, u.status,
-              p.full_name, p.gender, p.phone, p.institution, p.course,
-              p.year_of_study, p.quran_level, p.home_county, g.parent_name, g.parent_phone, g.parent_email
+      `SELECT u.id, u.email, u.section, u.status, u.created_at,
+              p.full_name, p.gender, p.phone, sx.nationality, sx.country, sx.county, sx.sub_county, sx.passport_photo_data, sx.entry_date, p.institution, p.course,
+              p.year_of_study, p.quran_level, p.home_county, g.parent_name, g.parent_phone, g.parent_email, g.alt_student_phone, g.alt_parent_phone, g.emergency_contact_1_name, g.emergency_contact_1_phone, g.emergency_contact_1_relation, g.emergency_contact_2_name, g.emergency_contact_2_phone, g.emergency_contact_2_relation
        FROM users u LEFT JOIN profiles p ON p.user_id = u.id
+       LEFT JOIN student_profile_extensions sx ON sx.user_id = u.id
        LEFT JOIN guardian_contacts g ON g.user_id = u.id
        WHERE u.role='student' AND u.status='approved'${clause}
          AND (p.full_name ILIKE $${params.length + 1} OR u.email ILIKE $${params.length + 1}
@@ -98,10 +168,11 @@ async function getIncompleteProfiles(req, res) {
   const { clause, params } = sectionFilter(req);
   try {
     const r = await pool.query(
-      `SELECT u.id, u.email, u.section,
-              p.full_name, p.phone, p.institution, p.course, p.gender
-             ,g.parent_name, g.parent_phone, g.parent_email
+      `SELECT u.id, u.email, u.section, u.status, u.created_at,
+              p.full_name, p.phone, sx.nationality, sx.country, sx.county, sx.sub_county, sx.passport_photo_data, sx.entry_date, p.institution, p.course, p.gender
+             ,g.parent_name, g.parent_phone, g.parent_email, g.alt_student_phone, g.alt_parent_phone, g.emergency_contact_1_name, g.emergency_contact_1_phone, g.emergency_contact_1_relation, g.emergency_contact_2_name, g.emergency_contact_2_phone, g.emergency_contact_2_relation
        FROM users u LEFT JOIN profiles p ON p.user_id = u.id
+       LEFT JOIN student_profile_extensions sx ON sx.user_id = u.id
        LEFT JOIN guardian_contacts g ON g.user_id = u.id
        WHERE u.role='student' AND u.status='approved'${clause}
          AND (p.full_name IS NULL OR p.phone IS NULL OR p.institution IS NULL OR p.course IS NULL)
@@ -117,9 +188,10 @@ async function getStudentProfile(req, res) {
   try {
     const r = await pool.query(
       `SELECT u.id, u.email, u.section, u.status, u.created_at,
-              p.full_name, p.gender, p.phone, p.institution, p.course,
-              p.year_of_study, p.quran_level, p.home_county, g.parent_name, g.parent_phone, g.parent_email
+              p.full_name, p.gender, p.phone, sx.nationality, sx.country, sx.county, sx.sub_county, sx.passport_photo_data, sx.entry_date, p.institution, p.course,
+              p.year_of_study, p.quran_level, p.home_county, g.parent_name, g.parent_phone, g.parent_email, g.alt_student_phone, g.alt_parent_phone, g.emergency_contact_1_name, g.emergency_contact_1_phone, g.emergency_contact_1_relation, g.emergency_contact_2_name, g.emergency_contact_2_phone, g.emergency_contact_2_relation
        FROM users u LEFT JOIN profiles p ON p.user_id = u.id
+       LEFT JOIN student_profile_extensions sx ON sx.user_id = u.id
        LEFT JOIN guardian_contacts g ON g.user_id = u.id
        WHERE u.id=$1`,
       [id]
@@ -128,6 +200,7 @@ async function getStudentProfile(req, res) {
     const student = r.rows[0];
     if (req.user.role !== 'super_admin' && student.section !== req.user.section)
       return res.status(403).json({ error: 'Forbidden' });
+    student.documents = await listStudentDocuments(id);
     res.json(student);
   } catch (err) { res.status(500).json({ error: err.message }); }
 }
@@ -135,7 +208,12 @@ async function getStudentProfile(req, res) {
 // ── Dashboard stats ───────────────────────────────────────────────────────────
 
 async function getDashboardStats(req, res) {
-  const { clause, params } = sectionFilter(req);
+  const { clause, params } = req.user.role === 'super_admin'
+    ? { clause: '', params: [] }
+    : { clause: ' AND section=$1', params: [req.user.section] };
+  const userJoinClause = req.user.role === 'super_admin'
+    ? ''
+    : ' AND u.section=$1';
   try {
     const [pending, approved, rejected, incomplete] = await Promise.all([
       pool.query(`SELECT COUNT(*) FROM users WHERE role='student' AND status='pending'${clause}`, params),
@@ -143,7 +221,7 @@ async function getDashboardStats(req, res) {
       pool.query(`SELECT COUNT(*) FROM users WHERE role='student' AND status='rejected'${clause}`, params),
       pool.query(
         `SELECT COUNT(*) FROM users u LEFT JOIN profiles p ON p.user_id=u.id
-         WHERE u.role='student' AND u.status='approved'${clause}
+         WHERE u.role='student' AND u.status='approved'${userJoinClause}
            AND (p.full_name IS NULL OR p.phone IS NULL OR p.institution IS NULL)`,
         params
       ),

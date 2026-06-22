@@ -1,6 +1,11 @@
 const crypto = require('crypto');
 const pool = require('../config/db');
 const { getAppSettings } = require('../services/settingsService');
+const { sendTransactionalEmail } = require('../services/communicationService');
+
+function getFrontendBaseUrl(req) {
+  return req.headers.origin || process.env.FRONTEND_URL || 'http://localhost:3000';
+}
 
 // POST /api/admin/invite/single — one link, no email required
 async function generateSingleInvite(req, res) {
@@ -13,7 +18,7 @@ async function generateSingleInvite(req, res) {
       'INSERT INTO invite_tokens (token, created_by, expires_at) VALUES ($1,$2,$3)',
       [token, req.user.id, expires_at]
     );
-    const baseUrl = process.env.FRONTEND_URL || 'http://localhost:3000';
+    const baseUrl = getFrontendBaseUrl(req);
     res.json({ link: `${baseUrl}/register?token=${token}`, expires_at });
   } catch (err) {
     res.status(500).json({ error: err.message });
@@ -28,7 +33,7 @@ async function generateInvite(req, res) {
   if (emails.length > 50)
     return res.status(400).json({ error: 'Maximum 50 emails per batch' });
 
-  const baseUrl = process.env.FRONTEND_URL || 'http://localhost:3000';
+  const baseUrl = getFrontendBaseUrl(req);
   const settings = await getAppSettings();
   const expiryDays = Number(settings.registration_invite_expiry_days || 7);
   const expires_at = new Date(Date.now() + expiryDays * 24 * 60 * 60 * 1000);
@@ -41,7 +46,22 @@ async function generateInvite(req, res) {
           'INSERT INTO invite_tokens (token, created_by, expires_at) VALUES ($1,$2,$3)',
           [token, req.user.id, expires_at]
         );
-        return { email, link: `${baseUrl}/register?token=${token}` };
+        const link = `${baseUrl}/register?token=${token}`;
+
+        await sendTransactionalEmail({
+          email,
+          subject: 'Centre of Suffa Registration Invitation',
+          message: [
+            'You have been invited to register on the Centre of Suffa platform.',
+            '',
+            `Registration link: ${link}`,
+            '',
+            `This link expires on ${expires_at.toLocaleString('en-GB')}.`,
+          ].join('\n'),
+          purpose: 'registration-invite',
+        });
+
+        return { email, link, emailed: true };
       })
     );
     res.json({ expires_at, invites: results });
