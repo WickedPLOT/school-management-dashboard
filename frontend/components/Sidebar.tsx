@@ -15,7 +15,7 @@ type Props = {
   brandName?: string;
 };
 
-export default function Sidebar({ groups, badge, email, role, onNavClick, collapsed = false, brandName = 'HAYRAT Centers' }: Props) {
+export default function Sidebar({ groups, badge, email, role, onNavClick, collapsed = false, brandName = 'HAYRAT CENTER' }: Props) {
   const pathname = usePathname();
   const router = useRouter();
   const titledGroupKeys = useMemo(

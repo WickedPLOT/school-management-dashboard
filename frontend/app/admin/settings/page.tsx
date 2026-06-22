@@ -17,7 +17,7 @@ type AppSettings = {
 };
 
 const DEFAULT_SETTINGS: AppSettings = {
-  centre_name: 'Centre of Suffa',
+  centre_name: 'HAYRAT CENTER',
   platform_label: 'Student Resident Management System',
   support_email: '',
   registration_invite_expiry_days: 7,

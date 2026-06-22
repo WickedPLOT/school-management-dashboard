@@ -10,7 +10,7 @@ function getFrontendBaseUrl(req) {
 // POST /api/admin/invite/single — one link, no email required
 async function generateSingleInvite(req, res) {
   try {
-    const maxUses = parseInt(req.body.max_uses) || 1;
+    const maxUses = parseInt(req.body?.max_uses) || 1;
     const token = crypto.randomBytes(32).toString('hex');
     const settings = await getAppSettings();
     const expiryDays = Number(settings.registration_invite_expiry_days || 7);
@@ -39,7 +39,7 @@ async function generateInvite(req, res) {
   const expiryDays = Number(settings.registration_invite_expiry_days || 7);
   const expires_at = new Date(Date.now() + expiryDays * 24 * 60 * 60 * 1000);
 
-  const maxUses = parseInt(req.body.max_uses) || 1;
+  const maxUses = parseInt(req.body?.max_uses) || 1;
   try {
     const results = await Promise.all(
       emails.map(async (email) => {

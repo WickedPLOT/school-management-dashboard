@@ -67,7 +67,7 @@ const EMPTY_SETTINGS: Settings = {
   smtp_secure: false,
   smtp_user: '',
   smtp_pass: '',
-  smtp_from_name: 'Centre of Suffa',
+  smtp_from_name: 'HAYRAT CENTER',
   smtp_from_email: '',
 };
 
@@ -105,7 +105,7 @@ export default function Page() {
           smtp_port: settingsData.smtp_port ?? 587,
           smtp_user: settingsData.smtp_user ?? '',
           smtp_pass: settingsData.smtp_pass ?? '',
-          smtp_from_name: settingsData.smtp_from_name ?? 'Centre of Suffa',
+          smtp_from_name: settingsData.smtp_from_name ?? 'HAYRAT CENTER',
           smtp_from_email: settingsData.smtp_from_email ?? '',
         });
         setHistory(historyData);
@@ -273,7 +273,7 @@ export default function Page() {
                     </div>
                     <div className="field">
                       <label>From Name</label>
-                      <input value={settings.smtp_from_name} onChange={(e) => update('smtp_from_name', e.target.value)} placeholder="Centre of Suffa" />
+                      <input value={settings.smtp_from_name} onChange={(e) => update('smtp_from_name', e.target.value)} placeholder="HAYRAT CENTER" />
                     </div>
                     <div className="field">
                       <label>From Email</label>

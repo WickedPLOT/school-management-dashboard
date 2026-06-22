@@ -35,7 +35,7 @@ export default function LoginPage() {
             </svg>
           </div>
           <h1>{PLATFORM_NAME}</h1>
-          <p>Hayrat Centers Management Platform</p>
+          <p>HAYRAT CENTER</p>
         </div>
 
         <div style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>
