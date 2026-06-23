@@ -59,7 +59,7 @@ export default function RegistrationsPage() {
     setSingleLink('');
     setSingleCopied(false);
     try {
-      const data = await apiFetch('/admin/invite/single', { method: 'POST' });
+      const data = await apiFetch('/admin/invite/single', { method: 'POST', body: JSON.stringify({ max_uses: 50 }) });
       setSingleLink(data.link);
     } catch (err: any) { setError(err.message); }
     finally { setSingleGenerating(false); }
@@ -167,8 +167,8 @@ export default function RegistrationsPage() {
           {mode === 'single' && (
             <>
               <p style={{ fontSize: '0.825rem', color: 'var(--muted)', marginBottom: '1rem' }}>
-                Generate one registration link with no email attached. Share it with a single student.
-                The link is single-use and expires in 7 days.
+                Generate one registration link with no email attached. Share it with students.
+                The link allows up to 50 sign-ups and expires in 7 days.
               </p>
               <div style={{ display: 'flex', gap: '0.75rem', flexWrap: 'wrap', alignItems: 'center' }}>
                 <button
