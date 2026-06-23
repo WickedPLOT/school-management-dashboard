@@ -19,13 +19,13 @@ const PERSONAL_FIELDS = [
 
 
 const CONTACT_FIELDS = [
-  { name: 'parent_name', label: 'Parent / Guardian Name', type: 'text', required: false },
-  { name: 'parent_phone', label: 'Parent / Guardian Phone', type: 'text', required: false },
+  { name: 'parent_name', label: 'Parent / Guardian Name', type: 'text', required: true },
+  { name: 'parent_phone', label: 'Parent / Guardian Phone', type: 'text', required: true },
   { name: 'parent_email', label: 'Parent / Guardian Email', type: 'email', required: false },
   { name: 'alt_student_phone', label: 'Alternative Student Phone', type: 'text', required: false },
   { name: 'alt_parent_phone', label: 'Alternative Parent Phone', type: 'text', required: false },
-  { name: 'emergency_contact_1_name', label: 'Emergency Contact 1 Name', type: 'text', required: false },
-  { name: 'emergency_contact_1_phone', label: 'Emergency Contact 1 Phone', type: 'text', required: false },
+  { name: 'emergency_contact_1_name', label: 'Emergency Contact 1 Name', type: 'text', required: true },
+  { name: 'emergency_contact_1_phone', label: 'Emergency Contact 1 Phone', type: 'text', required: true },
   { name: 'emergency_contact_1_relation', label: 'Emergency Contact 1 Relation', type: 'text', required: false },
   { name: 'emergency_contact_2_name', label: 'Emergency Contact 2 Name', type: 'text', required: false },
   { name: 'emergency_contact_2_phone', label: 'Emergency Contact 2 Phone', type: 'text', required: false },
