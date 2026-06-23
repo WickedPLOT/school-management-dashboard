@@ -77,7 +77,7 @@ async function register(req, res) {
   const {
     invite_token,
     email, password,
-    full_name, phone, gender,
+    full_name, phone, gender, section: requestedSection,
     institution, course, year_of_study, quran_level, home_county,
     nationality, country, county, sub_county, passport_photo_data, entry_date,
     parent_name, parent_phone, parent_email, alt_student_phone, alt_parent_phone,
@@ -105,6 +105,7 @@ async function register(req, res) {
     const appSettings = await getAppSettings();
 
     // Validate invite token only when a registration link was used.
+    let inviteSection = null;
     if (invite_token) {
       const [invRows] = await client.query(
         "SELECT * FROM invite_tokens WHERE token=? AND used < max_uses AND expires_at > NOW()",
@@ -114,14 +115,17 @@ async function register(req, res) {
         await client.query('ROLLBACK');
         return res.status(400).json({ error: 'Invalid, expired, or fully used invite link' });
       }
+      inviteSection = invRows[0].section_scope || null;
     }
 
     // Check email uniqueness
     const [exists] = await client.query('SELECT id FROM users WHERE email=?', [email]);
     if (exists.length) return res.status(409).json({ error: 'Email already registered' });
 
-    // Gender determines section
-    const section = gender === 'male' ? 'brothers' : 'sisters';
+    // Section: use invite token's section_scope if set, then user-selected, then derive from gender
+    const section = inviteSection
+      || (['brothers', 'sisters'].includes(requestedSection) ? requestedSection : null)
+      || (gender === 'male' ? 'brothers' : 'sisters');
     const password_hash = await bcrypt.hash(password, 10);
 
     const [userInsert] = await client.query(
@@ -211,11 +215,11 @@ async function validateInvite(req, res) {
   if (!token) return res.status(400).json({ error: 'Token required' });
   try {
     const [rows] = await pool.query(
-      "SELECT id FROM invite_tokens WHERE token=? AND used < max_uses AND expires_at > NOW()",
+      "SELECT id, section_scope FROM invite_tokens WHERE token=? AND used < max_uses AND expires_at > NOW()",
       [token]
     );
     if (!rows.length) return res.status(400).json({ valid: false, error: 'Invalid, expired, or fully used invite link' });
-    res.json({ valid: true });
+    res.json({ valid: true, section_scope: rows[0].section_scope || null });
   } catch (err) {
     res.status(500).json({ error: err.message });
   }

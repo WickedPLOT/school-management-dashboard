@@ -180,6 +180,7 @@ export default function RegisterForm() {
   const [loading, setLoading] = useState(false);
   const [validating, setValidating] = useState(!!token);
   const [tokenValid, setTokenValid] = useState(!token);
+  const [lockedSection, setLockedSection] = useState<string | null>(null);
   const [branding, setBranding] = useState<{ centre_name?: string; platform_label?: string; approval_required?: boolean }>({});
 
   useEffect(() => {
@@ -195,7 +196,7 @@ export default function RegisterForm() {
       return;
     }
     apiFetch(`/auth/validate-invite?token=${token}`)
-      .then(() => { setTokenValid(true); setValidating(false); })
+      .then((data: any) => { setTokenValid(true); setLockedSection(data.section_scope || null); setValidating(false); })
       .catch(() => { setError('This invite link is invalid or has expired.'); setValidating(false); });
   }, [token]);
 
@@ -218,8 +219,10 @@ export default function RegisterForm() {
     }
     setLoading(true);
     try {
-      const { confirm_password, ...payload } = form;
-      await apiFetch('/auth/register', { method: 'POST', body: JSON.stringify({ ...payload, invite_token: token || undefined }) });
+      const { confirm_password, section, ...payload } = form;
+      const body: any = { ...payload, invite_token: token || undefined };
+      if (!lockedSection && section) body.section = section;
+      await apiFetch('/auth/register', { method: 'POST', body: JSON.stringify(body) });
       router.push('/pending');
     } catch (err: any) {
       setError(err.message);
@@ -267,6 +270,21 @@ export default function RegisterForm() {
           <div className="form-grid">
             {sectionLabel('Personal Information')}
             {PERSONAL_FIELDS.map(f => <FieldInput key={f.name} f={f} form={form} setForm={setForm} />)}
+            {lockedSection ? (
+              <div style={{ gridColumn: '1 / -1' }}>
+                <label style={{ fontSize: '0.8rem', fontWeight: 600, marginBottom: '0.25rem', display: 'block' }}>Center (assigned by invite)</label>
+                <input readOnly value={lockedSection === 'brothers' ? 'Centre of Suffa' : 'Centre of Azzarah'} style={{ background: '#f3f4f6', cursor: 'not-allowed' }} />
+              </div>
+            ) : (
+              <div>
+                <label style={{ fontSize: '0.8rem', fontWeight: 600, marginBottom: '0.25rem', display: 'block' }}>Center <span style={{ color: '#dc2626' }}>*</span></label>
+                <select value={form.section || ''} onChange={e => setForm(f => ({ ...f, section: e.target.value }))} required>
+                  <option value="">Select Center</option>
+                  <option value="brothers">Centre of Suffa (Brothers)</option>
+                  <option value="sisters">Centre of Azzarah (Sisters)</option>
+                </select>
+              </div>
+            )}
             <PassportPhotoInput form={form} setForm={setForm} setError={setError} />
 
             <div style={{ gridColumn: '1 / -1', borderTop: '1px solid var(--border)', margin: '0.25rem 0' }} />

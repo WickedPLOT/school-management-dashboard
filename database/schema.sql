@@ -31,7 +31,8 @@ CREATE TABLE IF NOT EXISTS invite_tokens (
   created_by INT REFERENCES users(id) ON DELETE SET NULL,
   used TINYINT(1) DEFAULT FALSE,
   expires_at TIMESTAMP NOT NULL,
-  created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+  created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+  section_scope VARCHAR(20) DEFAULT NULL
 );
 
 -- Admin notes on registrations
