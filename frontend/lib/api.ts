@@ -13,13 +13,29 @@ export async function apiFetch(path: string, options: RequestInit = {}) {
   }
   
   const base = API.replace(/\/+$/, '');
-  const res = await fetch(`${base}${path}`, {
-    ...options,
-    headers: {
-      ...headers,
-      ...options.headers,
-    },
-  });
+
+  // Use AbortController for timeout (60s for large uploads, 15s otherwise)
+  const isLargeBody = typeof options.body === 'string' && options.body.length > 500_000;
+  const timeout = isLargeBody ? 120_000 : 30_000;
+  const controller = new AbortController();
+  const timer = setTimeout(() => controller.abort(), timeout);
+
+  let res: Response;
+  try {
+    res = await fetch(`${base}${path}`, {
+      ...options,
+      signal: controller.signal,
+      headers: {
+        ...headers,
+        ...options.headers,
+      },
+    });
+  } catch (err: any) {
+    clearTimeout(timer);
+    if (err.name === 'AbortError') throw new Error('Request timed out. Please check your connection and try again.');
+    throw new Error('Network error — unable to reach the server. Please check your internet connection.');
+  }
+  clearTimeout(timer);
 
   const text = await res.text();
   let data: any = null;
