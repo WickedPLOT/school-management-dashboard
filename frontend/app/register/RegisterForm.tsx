@@ -206,6 +206,12 @@ export default function RegisterForm() {
     if ((form.password || '').length < 6) { setError('Password must be at least 6 characters'); return; }
     if (form.password !== form.confirm_password) { setError('Passwords do not match'); return; }
     if (!form.passport_photo_data) { setError('Passport photo is required'); return; }
+    const hasParentInfo = !!(form.parent_name && form.parent_phone);
+    const hasEmergency1 = !!(form.emergency_contact_1_name && form.emergency_contact_1_phone);
+    if (!hasParentInfo && !hasEmergency1) {
+      setError('At least one guardian is required — fill Parent/Guardian or Emergency Contact 1 (name and phone)');
+      return;
+    }
     const hasPassport = !!form.passport_document_data;
     const hasIdFront = !!form.id_front_data;
     const hasIdBack = !!form.id_back_data;
