@@ -58,11 +58,29 @@ const PASSWORD_FIELDS = [
 type AnyField = typeof PERSONAL_FIELDS[number] | typeof CONTACT_FIELDS[number] | typeof ACADEMIC_FIELDS[number] | typeof PASSWORD_FIELDS[number];
 
 
+function compressImage(file: File, maxWidth = 1200, quality = 0.7): Promise<string> {
+  return new Promise((resolve, reject) => {
+    const img = new Image();
+    img.onload = () => {
+      const scale = Math.min(1, maxWidth / Math.max(img.width, img.height));
+      const canvas = document.createElement('canvas');
+      canvas.width = img.width * scale;
+      canvas.height = img.height * scale;
+      const ctx = canvas.getContext('2d')!;
+      ctx.drawImage(img, 0, 0, canvas.width, canvas.height);
+      resolve(canvas.toDataURL('image/jpeg', quality));
+    };
+    img.onerror = () => reject(new Error('Could not read selected image'));
+    img.src = URL.createObjectURL(file);
+  });
+}
+
 function readFileAsDataUrl(file: File) {
+  if (file.type.startsWith('image/')) return compressImage(file);
   return new Promise<string>((resolve, reject) => {
     const reader = new FileReader();
     reader.onload = () => resolve(String(reader.result || ''));
-    reader.onerror = () => reject(new Error('Could not read selected image'));
+    reader.onerror = () => reject(new Error('Could not read selected file'));
     reader.readAsDataURL(file);
   });
 }
@@ -72,7 +90,7 @@ function PassportPhotoInput({ form, setForm, setError }: { form: Record<string, 
     const file = event.target.files?.[0];
     if (!file) return;
     if (!file.type.startsWith('image/')) { setError('Passport photo must be an image file'); return; }
-    if (file.size > 1024 * 1024 * 2) { setError('Passport photo must be below 2MB'); return; }
+    if (file.size > 1024 * 1024 * 10) { setError('Passport photo must be below 10MB'); return; }
     setError('');
     const dataUrl = await readFileAsDataUrl(file);
     setForm({ ...form, passport_photo_data: dataUrl });
@@ -99,7 +117,7 @@ function StudentDocumentUploads({ form, setForm, setError }: { form: Record<stri
     if (!file) return;
     const allowed = file.type.startsWith('image/') || file.type === 'application/pdf';
     if (!allowed) { setError('Documents must be images or PDF files'); return; }
-    if (file.size > 1024 * 1024 * 5) { setError('Each document must be below 5MB'); return; }
+    if (file.size > 1024 * 1024 * 10) { setError('Each document must be below 10MB'); return; }
     setError('');
     const dataUrl = await readFileAsDataUrl(file);
     setForm({ ...form, [`${key}_data`]: dataUrl, [`${key}_name`]: file.name, [`${key}_mime`]: file.type });
