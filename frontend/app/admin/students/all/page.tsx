@@ -2,6 +2,7 @@
 import { useEffect, useState } from 'react';
 import { apiFetch } from '@/lib/api';
 import StudentTable, { StudentRow } from '@/components/StudentTable';
+import ConfirmModal from '@/components/ConfirmModal';
 
 export default function AllStudentsPage() {
   const [students, setStudents] = useState<StudentRow[]>([]);
@@ -9,6 +10,7 @@ export default function AllStudentsPage() {
   const [error, setError] = useState('');
   const [search, setSearch] = useState('');
   const [deleting, setDeleting] = useState<number | null>(null);
+  const [confirmTarget, setConfirmTarget] = useState<StudentRow | null>(null);
 
   async function load(q = '') {
     setLoading(true);
@@ -27,13 +29,14 @@ export default function AllStudentsPage() {
     load(search);
   }
 
-  async function handleDelete(id: number, name: string) {
-    if (!confirm(`Are you sure you want to delete ${name || 'this student'}? This cannot be undone.`)) return;
-    setDeleting(id);
+  async function handleDelete() {
+    if (!confirmTarget) return;
+    setDeleting(confirmTarget.id);
+    setConfirmTarget(null);
     try {
-      await apiFetch(`/admin/students/${id}`, { method: 'DELETE' });
-      setStudents(s => s.filter(x => x.id !== id));
-    } catch (e: any) { alert(e.message); }
+      await apiFetch(`/admin/students/${confirmTarget.id}`, { method: 'DELETE' });
+      setStudents(s => s.filter(x => x.id !== confirmTarget.id));
+    } catch (e: any) { setError(e.message); }
     finally { setDeleting(null); }
   }
 
@@ -64,7 +67,7 @@ export default function AllStudentsPage() {
           actions={(s) => (
             <button
               style={{ width: 'auto', padding: '0.3rem 0.75rem', fontSize: '0.75rem', background: '#dc2626', color: 'white', border: 'none', borderRadius: '0.375rem', cursor: 'pointer' }}
-              onClick={() => handleDelete(s.id, s.full_name || '')}
+              onClick={() => setConfirmTarget(s)}
               disabled={deleting === s.id}
             >
               {deleting === s.id ? 'Deleting...' : 'Delete'}
@@ -72,6 +75,14 @@ export default function AllStudentsPage() {
           )}
         />
       </div>
+      <ConfirmModal
+        open={!!confirmTarget}
+        title="Delete Student"
+        message={`Are you sure you want to permanently delete ${confirmTarget?.full_name || confirmTarget?.email || 'this student'}? This action cannot be undone.`}
+        confirmLabel="Delete"
+        onConfirm={handleDelete}
+        onCancel={() => setConfirmTarget(null)}
+      />
     </div>
   );
 }

@@ -8,6 +8,7 @@ export default function IncompleteProfilesPage() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
   const [prompting, setPrompting] = useState<number | null>(null);
+  const [toast, setToast] = useState('');
 
   useEffect(() => {
     apiFetch('/admin/profiles/incomplete')
@@ -20,8 +21,9 @@ export default function IncompleteProfilesPage() {
     setPrompting(id);
     try {
       await apiFetch(`/admin/profiles/${id}/prompt`, { method: 'POST' });
-      alert('Prompt notification sent');
-    } catch (e: any) { alert(e.message); }
+      setToast('Prompt notification sent successfully');
+      setTimeout(() => setToast(''), 3000);
+    } catch (e: any) { setError(e.message); }
     finally { setPrompting(null); }
   }
 
@@ -31,6 +33,11 @@ export default function IncompleteProfilesPage() {
         <h1>Incomplete Profiles</h1>
         <p>Students missing required profile information</p>
       </div>
+      {toast && (
+        <div style={{ background: '#065f46', color: 'white', padding: '0.75rem 1.25rem', borderRadius: '0.5rem', marginBottom: '1rem', fontSize: '0.85rem', fontWeight: 500 }}>
+          ✓ {toast}
+        </div>
+      )}
       <div className="content-card">
         <div className="content-card-header">
           <h2>Incomplete</h2>
@@ -48,7 +55,7 @@ export default function IncompleteProfilesPage() {
               onClick={() => prompt(s.id)}
               disabled={prompting === s.id}
             >
-              {prompting === s.id ? 'Sending...' : 'Prompt'}
+              {prompting === s.id ? 'Sending...' : '📢 Prompt'}
             </button>
           )}
         />

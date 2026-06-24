@@ -149,7 +149,7 @@ async function searchProfiles(req, res) {
   try {
     const [rows] = await pool.query(
       `SELECT u.id, u.email, u.section, u.status, u.created_at,
-              p.full_name, p.gender, p.phone, sx.nationality, sx.country, sx.county, sx.sub_county, sx.passport_photo_data, sx.entry_date, p.institution, p.course,
+              p.full_name, p.gender, p.phone, sx.nationality, sx.country, sx.county, sx.sub_county, sx.entry_date, p.institution, p.course,
               p.year_of_study, p.quran_level, p.home_county, g.parent_name, g.parent_phone, g.parent_email, g.alt_student_phone, g.alt_parent_phone, g.emergency_contact_1_name, g.emergency_contact_1_phone, g.emergency_contact_1_relation, g.emergency_contact_2_name, g.emergency_contact_2_phone, g.emergency_contact_2_relation
        FROM users u LEFT JOIN profiles p ON p.user_id = u.id
        LEFT JOIN student_profile_extensions sx ON sx.user_id = u.id
