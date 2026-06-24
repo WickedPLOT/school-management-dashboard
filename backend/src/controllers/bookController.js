@@ -35,7 +35,8 @@ async function listBooks(req, res) {
   try {
     const { clause, params } = adminSectionFilter(req, 'pb');
     const [rows] = await pool.query(
-      `SELECT pb.*, u.email AS created_by_email,
+      `SELECT pb.id, pb.title, pb.description, pb.file_name, pb.total_pages, pb.section_scope, pb.is_published, pb.created_by, pb.created_at, pb.updated_at, pb.cover_data,
+              u.email AS created_by_email,
               COUNT(bp.id) AS student_count,
               COALESCE(ROUND(AVG(CASE WHEN pb.total_pages > 0 THEN bp.pages_read / pb.total_pages * 100 ELSE 0 END), 1), 0) AS avg_progress
        FROM platform_books pb
@@ -231,7 +232,7 @@ async function getBookStudentProgress(req, res) {
   const { id } = req.params;
   const { clause, params } = adminSectionFilter(req, 'u');
   try {
-    const [book] = await pool.query('SELECT * FROM platform_books WHERE id = ?', [id]);
+    const [book] = await pool.query('SELECT id, title, total_pages, section_scope, file_name, is_published, created_at FROM platform_books WHERE id = ?', [id]);
     if (!book.length) return res.status(404).json({ error: 'Book not found' });
 
     const filterClause = params.length ? clause : '';
@@ -321,7 +322,7 @@ async function listMyBooks(req, res) {
   try {
     const [rows] = await pool.query(
       `SELECT pb.id, pb.title, pb.description, pb.total_pages, pb.section_scope,
-              pb.file_name, pb.file_data,
+              pb.file_name,
               COALESCE(bp.pages_read, 0) AS pages_read,
               COALESCE(bp.status, 'not_started') AS status,
               bp.notes, bp.updated_at AS progress_updated_at,

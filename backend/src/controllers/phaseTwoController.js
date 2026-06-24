@@ -400,7 +400,8 @@ async function markNotificationRead(req, res) {
 async function listResourcesAdmin(req, res) {
   try {
     const [rows] = await pool.query(
-      `SELECT kr.*, u.email AS created_by_email
+      `SELECT kr.id, kr.title, kr.category, kr.description, kr.resource_type, kr.external_url, kr.file_name, kr.note_content, kr.audience, kr.section_scope, kr.is_published, kr.created_by, kr.created_at, kr.updated_at,
+              u.email AS created_by_email
        FROM knowledge_resources kr
        LEFT JOIN users u ON u.id = kr.created_by
        ORDER BY kr.updated_at DESC, kr.created_at DESC`
@@ -520,7 +521,7 @@ async function listStudentResources(req, res) {
   const section = req.user.section;
   try {
     const [rows] = await pool.query(
-      `SELECT *
+      `SELECT id, title, category, description, resource_type, external_url, file_name, note_content, audience, section_scope, is_published, created_at, updated_at
        FROM knowledge_resources
        WHERE is_published = TRUE
          AND audience IN ('students', 'both')
