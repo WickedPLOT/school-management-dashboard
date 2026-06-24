@@ -22,6 +22,7 @@ const {
   getDashboardStats,
   getAdmins, createAdmin, updateAdmin, deleteAdmin,
   addNote, getNotes,
+  promptCompleteProfile, deleteStudent,
 } = require('../controllers/adminController');
 const {
   getSettings,
@@ -126,6 +127,8 @@ router.patch('/reject/:id',           auth, isAdmin, rejectUser);
 router.get('/profiles',               auth, isAdmin, searchProfiles);
 router.get('/profiles/incomplete',    auth, isAdmin, getIncompleteProfiles);
 router.get('/profiles/:id',           auth, isAdmin, getStudentProfile);
+router.post('/profiles/:id/prompt',   auth, isAdmin, promptCompleteProfile);
+router.delete('/students/:id',        auth, isAdmin, deleteStudent);
 
 // Invites
 router.post('/invite/single',         auth, isAdmin, generateSingleInvite);

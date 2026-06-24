@@ -324,6 +324,29 @@ async function getNotes(req, res) {
   } catch (err) { res.status(500).json({ error: err.message }); }
 }
 
+// POST /api/admin/profiles/:id/prompt — send notification to complete profile
+async function promptCompleteProfile(req, res) {
+  const { id } = req.params;
+  try {
+    await pool.query(
+      `INSERT INTO notifications (user_id, title, message, kind, action_url) VALUES (?,?,?,?,?)`,
+      [id, 'Complete Your Profile', 'Please complete your profile information. Some required fields are missing.', 'general', '/student/profile']
+    );
+    res.json({ message: 'Prompt notification sent' });
+  } catch (err) { res.status(500).json({ error: err.message }); }
+}
+
+// DELETE /api/admin/students/:id — delete a student account
+async function deleteStudent(req, res) {
+  const { id } = req.params;
+  try {
+    const [rows] = await pool.query('SELECT id, status FROM users WHERE id=? AND role=?', [id, 'student']);
+    if (!rows.length) return res.status(404).json({ error: 'Student not found' });
+    await pool.query('DELETE FROM users WHERE id=?', [id]);
+    res.json({ message: 'Student deleted' });
+  } catch (err) { res.status(500).json({ error: err.message }); }
+}
+
 module.exports = {
   getPendingUsers, getAllStudents, getRejectedStudents,
   approveUser, rejectUser,
@@ -331,4 +354,5 @@ module.exports = {
   getDashboardStats,
   getAdmins, createAdmin, updateAdmin, deleteAdmin,
   addNote, getNotes,
+  promptCompleteProfile, deleteStudent,
 };

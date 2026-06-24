@@ -8,6 +8,7 @@ export default function AllStudentsPage() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
   const [search, setSearch] = useState('');
+  const [deleting, setDeleting] = useState<number | null>(null);
 
   async function load(q = '') {
     setLoading(true);
@@ -24,6 +25,16 @@ export default function AllStudentsPage() {
   function handleSearch(e: React.FormEvent) {
     e.preventDefault();
     load(search);
+  }
+
+  async function handleDelete(id: number, name: string) {
+    if (!confirm(`Are you sure you want to delete ${name || 'this student'}? This cannot be undone.`)) return;
+    setDeleting(id);
+    try {
+      await apiFetch(`/admin/students/${id}`, { method: 'DELETE' });
+      setStudents(s => s.filter(x => x.id !== id));
+    } catch (e: any) { alert(e.message); }
+    finally { setDeleting(null); }
   }
 
   return (
@@ -45,7 +56,21 @@ export default function AllStudentsPage() {
             <button type="submit" className="btn-primary" style={{ width: 'auto', padding: '0.375rem 0.9rem' }}>Search</button>
           </form>
         </div>
-        <StudentTable students={students} loading={loading} error={error} emptyMsg="No students found." />
+        <StudentTable
+          students={students}
+          loading={loading}
+          error={error}
+          emptyMsg="No students found."
+          actions={(s) => (
+            <button
+              style={{ width: 'auto', padding: '0.3rem 0.75rem', fontSize: '0.75rem', background: '#dc2626', color: 'white', border: 'none', borderRadius: '0.375rem', cursor: 'pointer' }}
+              onClick={() => handleDelete(s.id, s.full_name || '')}
+              disabled={deleting === s.id}
+            >
+              {deleting === s.id ? 'Deleting...' : 'Delete'}
+            </button>
+          )}
+        />
       </div>
     </div>
   );
