@@ -32,8 +32,32 @@ const CONTACT_FIELDS = [
   { name: 'emergency_contact_2_relation', label: 'Emergency Contact 2 Relation', type: 'text', required: false },
 ] as const;
 
+const KENYAN_UNIVERSITIES = [
+  'University of Nairobi', 'Kenyatta University', 'Moi University', 'Egerton University',
+  'Jomo Kenyatta University of Agriculture and Technology', 'Maseno University',
+  'Technical University of Kenya', 'Technical University of Mombasa', 'Dedan Kimathi University of Technology',
+  'Masinde Muliro University of Science and Technology', 'Chuka University', 'Laikipia University',
+  'South Eastern Kenya University', 'Machakos University', 'Murang\'a University of Technology',
+  'Kirinyaga University', 'Meru University of Science and Technology', 'Multimedia University of Kenya',
+  'University of Kabianga', 'Maasai Mara University', 'Jaramogi Oginga Odinga University of Science and Technology',
+  'University of Eldoret', 'Kisii University', 'Pwani University', 'Garissa University',
+  'Co-operative University of Kenya', 'Embu University', 'Karatina University',
+  'Rongo University', 'Taita Taveta University', 'Tharaka University', 'Tom Mboya University',
+  'Bomet University College', 'Alupe University',
+  'Strathmore University', 'United States International University - Africa',
+  'Daystar University', 'Africa Nazarene University', 'Catholic University of Eastern Africa',
+  'KCA University', 'Mount Kenya University', 'Kenya Methodist University',
+  'St. Paul\'s University', 'Pan Africa Christian University', 'Scott Christian University',
+  'Kabarak University', 'Africa International University', 'Adventist University of Africa',
+  'Aga Khan University', 'Zetech University', 'Riara University',
+  'Pioneer International University', 'Management University of Africa',
+  'Umma University', 'Kenya Highlands Evangelical University', 'Lukenya University',
+  'International Leadership University', 'Tangaza University College',
+  'USIU-Africa', 'Nairobi Institute of Technology',
+];
+
 const ACADEMIC_FIELDS = [
-  { name: 'institution',   label: 'Institution',                  type: 'text',   required: true,  span: 2 },
+  { name: 'institution',   label: 'Institution',                  type: 'datalist', required: true,  span: 2, options: KENYAN_UNIVERSITIES },
   { name: 'course',        label: 'Course / Programme',           type: 'text',   required: true },
   { name: 'year_of_study', label: 'Year of Study',                type: 'number', required: false },
   { name: 'entry_date',    label: 'Date You Joined the Center',   type: 'date',   required: false },
@@ -168,6 +192,19 @@ function FieldInput({ f, form, setForm }: { f: AnyField; form: Record<string, st
           value={form[f.name] || ''}
           onChange={e => setForm({ ...form, [f.name]: e.target.value })}
         />
+      ) : f.type === 'datalist' ? (
+        <>
+          <input
+            list={`${f.name}-list`}
+            required={f.required}
+            placeholder={f.label}
+            value={form[f.name] || ''}
+            onChange={e => setForm({ ...form, [f.name]: e.target.value })}
+          />
+          <datalist id={`${f.name}-list`}>
+            {'options' in f && f.options.map((o: string) => <option key={o} value={o} />)}
+          </datalist>
+        </>
       ) : (
         <input
           type={f.type}
