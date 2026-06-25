@@ -2691,9 +2691,10 @@ button { font-family: inherit; cursor: pointer; }
 
 .student-performance-grid {
   display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(170px, 1fr));
+  grid-template-columns: repeat(auto-fit, minmax(140px, 1fr));
   gap: 0.85rem;
   margin: 1rem 0;
+  overflow: hidden;
 }
 
 .student-performance-card {
@@ -2706,13 +2707,16 @@ button { font-family: inherit; cursor: pointer; }
   gap: 0.7rem;
   text-align: center;
   box-shadow: 0 8px 22px rgba(18, 72, 43, 0.06);
+  min-width: 0;
+  overflow: hidden;
 }
 
 .student-ring {
-  width: 104px;
-  height: 104px;
+  width: 96px;
+  height: 96px;
   border-radius: 999px;
-  padding: 9px;
+  padding: 8px;
+  max-width: 100%;
 }
 
 .student-ring > div {
@@ -2750,6 +2754,7 @@ button { font-family: inherit; cursor: pointer; }
   padding: 1.5rem 1.5rem 0;
   display: grid;
   gap: 1rem;
+  overflow: hidden;
 }
 
 .admin-profile-photo-card {
@@ -2778,6 +2783,33 @@ button { font-family: inherit; cursor: pointer; }
     width: 96px;
     height: 96px;
     border-radius: 20px;
+  }
+
+  .student-performance-grid {
+    grid-template-columns: repeat(2, 1fr);
+    gap: 0.6rem;
+  }
+
+  .student-ring {
+    width: 80px;
+    height: 80px;
+    padding: 6px;
+  }
+
+  .student-ring strong {
+    font-size: 0.95rem;
+  }
+
+  .student-ring span {
+    font-size: 0.58rem;
+  }
+
+  .student-performance-card p {
+    font-size: 0.7rem;
+  }
+
+  .admin-profile-overview {
+    padding: 1rem;
   }
 }
 

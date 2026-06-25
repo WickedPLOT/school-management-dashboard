@@ -161,8 +161,8 @@ export default function StudentProfileViewPage() {
               {profile.passport_photo_data ? <img src={profile.passport_photo_data} alt="Passport photo" /> : <span>No Photo</span>}
             </div>
             <div>
-              <strong>Passport Photo</strong>
-              <p className="table-muted">Student record image for verification, dorm placement, and staff review.</p>
+              <strong>{profile.full_name || 'Student'}</strong>
+              <p className="table-muted">{profile.email} · {profile.section === 'sisters' ? 'Centre of Azzarah' : 'Centre of Suffa'}</p>
             </div>
           </div>
           <div className="student-performance-grid admin-profile-performance">
