@@ -169,9 +169,12 @@ export default function Page() {
   async function deleteRoutine() {
     if (!deleteTarget) return;
     try {
-      await apiFetch(`/admin/routines/${deleteTarget.id}`, { method: 'DELETE' });
-      setRoutines((current) => current.filter((item) => item.id !== deleteTarget.id));
-      if (editingRoutineId === deleteTarget.id) {
+      // Find all routines in the same group and delete them all
+      const targetKey = routineGroupKey(deleteTarget);
+      const groupedIds = routines.filter(r => routineGroupKey(r) === targetKey).map(r => r.id);
+      await Promise.all(groupedIds.map(id => apiFetch(`/admin/routines/${id}`, { method: 'DELETE' })));
+      setRoutines((current) => current.filter((item) => !groupedIds.includes(item.id)));
+      if (editingRoutineId && groupedIds.includes(editingRoutineId)) {
         setEditingRoutineId(null);
         setShowRoutineModal(false);
       }

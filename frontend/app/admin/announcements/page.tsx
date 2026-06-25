@@ -4,6 +4,7 @@ import { useEffect, useState } from 'react';
 import { useSearchParams } from 'next/navigation';
 import { apiFetch } from '@/lib/api';
 import Modal from '@/components/Modal';
+import ConfirmDialog from '@/components/ConfirmDialog';
 import MoreDropdown from '@/components/MoreDropdown';
 
 type Student = { id: number; email: string; full_name?: string; section: 'brothers' | 'sisters' };
@@ -37,6 +38,7 @@ export default function Page() {
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState('');
   const [success, setSuccess] = useState('');
+  const [deleteScheduleTarget, setDeleteScheduleTarget] = useState<Schedule | null>(null);
 
   async function load() {
     try {
@@ -120,6 +122,18 @@ export default function Page() {
     setAttendanceRows((current) => current.map((row) => row.id === userId ? { ...row, attendance_status: status } : row));
   }
 
+  async function deleteSchedule() {
+    if (!deleteScheduleTarget) return;
+    try {
+      await apiFetch(`/admin/daily-schedule/${deleteScheduleTarget.id}`, { method: 'DELETE' });
+      setSchedules((current) => current.filter((s) => s.id !== deleteScheduleTarget.id));
+      setDeleteScheduleTarget(null);
+      setSuccess('Daily activity deleted.');
+    } catch (err) {
+      if (err instanceof Error) setError(err.message);
+    }
+  }
+
   async function saveAttendance() {
     if (!attendanceTarget) return;
     setSaving(true); setError(''); setSuccess('');
@@ -189,7 +203,10 @@ export default function Page() {
                       : (item.presenter_name || students.find((s) => s.id === item.presenter_user_id)?.full_name || '—')}</td>
                     <td>{item.repeat_mode === 'daily' ? 'Daily' : 'Once'}</td>
                     <td><span className={`badge badge-${item.status === 'done' ? 'approved' : item.status === 'cancelled' ? 'rejected' : 'pending'}`}>{item.status}</span></td>
-                    <td><div className="event-actions"><button type="button" className="btn-outline" onClick={() => openAttendance(item)}>Attendance</button></div></td>
+                    <td><div className="event-actions" style={{ gap: '0.25rem' }}>
+                      <button type="button" className="btn-outline" onClick={() => openAttendance(item)}>Attendance</button>
+                      <button type="button" style={{ padding: '0.3rem 0.6rem', fontSize: '0.72rem', background: '#dc2626', color: 'white', border: 'none', borderRadius: '0.375rem', cursor: 'pointer' }} onClick={() => setDeleteScheduleTarget(item)}>Delete</button>
+                    </div></td>
                   </tr>
                 ))}
                 {!schedules.length ? <tr><td colSpan={8}><div className="empty-state"><p>No daily activities added yet.</p></div></td></tr> : null}
@@ -361,6 +378,10 @@ export default function Page() {
         </div>
         <div style={{ display: 'flex', gap: '0.6rem', justifyContent: 'flex-end', padding: '1rem' }}><button type="button" className="btn-primary" onClick={saveAttendance} disabled={saving} style={{ width: 'auto', paddingInline: '1.25rem' }}>{saving ? 'Saving...' : 'Save Attendance'}</button><button type="button" className="btn-outline" onClick={() => setAttendanceTarget(null)} style={{ width: 'auto' }}>Cancel</button></div>
       </Modal>
+
+      {deleteScheduleTarget ? (
+        <ConfirmDialog title="Delete daily activity?" message={`This will permanently delete "${deleteScheduleTarget.title}".`} confirmLabel="Delete" tone="danger" onCancel={() => setDeleteScheduleTarget(null)} onConfirm={deleteSchedule} />
+      ) : null}
 
     </div>
   );
