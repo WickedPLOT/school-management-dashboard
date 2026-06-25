@@ -57,7 +57,7 @@ const KENYAN_UNIVERSITIES = [
 ];
 
 const ACADEMIC_FIELDS = [
-  { name: 'institution',   label: 'Institution',                  type: 'datalist', required: true,  span: 2, options: KENYAN_UNIVERSITIES },
+  { name: 'institution',   label: 'Institution',                  type: 'select',   required: true,  span: 2, options: KENYAN_UNIVERSITIES },
   { name: 'course',        label: 'Course / Programme',           type: 'text',   required: true },
   { name: 'year_of_study', label: 'Year of Study',                type: 'number', required: false },
   { name: 'entry_date',    label: 'Date You Joined the Center',   type: 'date',   required: false },
@@ -180,8 +180,8 @@ function FieldInput({ f, form, setForm }: { f: AnyField; form: Record<string, st
       {f.type === 'select' ? (
         <select required={f.required} value={form[f.name] || ''} onChange={e => setForm({ ...form, [f.name]: e.target.value })}>
           <option value="">Select...</option>
-          {'options' in f && f.options.map((o: string) => (
-            <option key={o} value={o}>{o.charAt(0).toUpperCase() + o.slice(1)}</option>
+          {'options' in f && f.options.filter((o: string) => o).map((o: string) => (
+            <option key={o} value={o}>{o}</option>
           ))}
         </select>
       ) : f.type === 'password' ? (
@@ -192,19 +192,6 @@ function FieldInput({ f, form, setForm }: { f: AnyField; form: Record<string, st
           value={form[f.name] || ''}
           onChange={e => setForm({ ...form, [f.name]: e.target.value })}
         />
-      ) : f.type === 'datalist' ? (
-        <>
-          <input
-            list={`${f.name}-list`}
-            required={f.required}
-            placeholder={f.label}
-            value={form[f.name] || ''}
-            onChange={e => setForm({ ...form, [f.name]: e.target.value })}
-          />
-          <datalist id={`${f.name}-list`}>
-            {'options' in f && f.options.map((o: string) => <option key={o} value={o} />)}
-          </datalist>
-        </>
       ) : (
         <input
           type={f.type}
