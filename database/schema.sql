@@ -263,7 +263,7 @@ CREATE TABLE IF NOT EXISTS daily_schedule_attendance (
   schedule_id INT NOT NULL REFERENCES daily_schedules(id) ON DELETE CASCADE,
   user_id INT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
   attendance_date DATE NOT NULL,
-  status VARCHAR(20) NOT NULL CHECK (status IN ('present','absent','excused')),
+  status VARCHAR(20) NOT NULL CHECK (status IN ('present','absent','excused','late')),
   marked_by INT REFERENCES users(id) ON DELETE SET NULL,
   created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
   updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
