@@ -444,6 +444,13 @@ export default function AnalyticsDashboard({
     color: CHART_COLORS[index],
   }));
 
+  const attendanceBreakdownBars = [
+    { label: 'Present', value: scopedAttendance.reduce((s, r) => s + num(r.present_count), 0), color: '#16a34a' },
+    { label: 'Late', value: scopedAttendance.reduce((s, r) => s + num(r.late_count), 0), color: '#f59e0b' },
+    { label: 'Absent', value: scopedAttendance.reduce((s, r) => s + num(r.absent_count), 0), color: '#dc2626' },
+    { label: 'Excused', value: scopedAttendance.reduce((s, r) => s + num(r.excused_count), 0), color: '#ca8a04' },
+  ];
+
   const cards = [
     { label: 'Approved Students', value: scopedStudents.length },
     { label: 'Pending Approvals', value: scopedPending.length },
@@ -513,6 +520,7 @@ export default function AnalyticsDashboard({
             <BarChartCard title="Most Popular Courses" data={courseBars} />
             <BarChartCard title="Dorm Occupancy" data={dormOccupancyBars} suffix="%" maxValue={100} />
             <BarChartCard title="Program Activity Volume" data={progressBars} />
+            <BarChartCard title="Attendance Breakdown" data={attendanceBreakdownBars} />
             <DonutChart title="Center Split" data={sectionDistribution} totalLabel="Students" />
             <DonutChart title="Country / Nationality" data={countryDistribution} totalLabel="Students" />
             <DonutChart title="County Distribution" data={countyDistribution} totalLabel="Students" />
