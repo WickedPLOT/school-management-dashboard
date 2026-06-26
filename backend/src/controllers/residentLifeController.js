@@ -379,7 +379,7 @@ async function saveDailyScheduleAttendance(req, res) {
   try {
     await client.query('BEGIN');
     for (const record of records) {
-      if (!record?.user_id || !['present', 'absent', 'excused'].includes(record.status)) continue;
+      if (!record?.user_id || !['present', 'absent', 'excused', 'late'].includes(record.status)) continue;
       await client.query(
         `INSERT INTO daily_schedule_attendance (schedule_id, user_id, attendance_date, status, marked_by, updated_at)
          VALUES (?,?,CURRENT_DATE,?,?,NOW())

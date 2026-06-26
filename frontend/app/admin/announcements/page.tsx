@@ -33,7 +33,7 @@ export default function Page() {
   const [showScheduleModal, setShowScheduleModal] = useState(false);
   const [showMeetingModal, setShowMeetingModal] = useState(Boolean(selectedStudentId));
   const [attendanceTarget, setAttendanceTarget] = useState<Schedule | null>(null);
-  const [attendanceRows, setAttendanceRows] = useState<Array<{ id: number; email: string; full_name?: string; attendance_status?: 'present' | 'absent' | 'excused' }>>([]);
+  const [attendanceRows, setAttendanceRows] = useState<Array<{ id: number; email: string; full_name?: string; attendance_status?: 'present' | 'absent' | 'late' | 'excused' }>>([]);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState('');
@@ -118,7 +118,7 @@ export default function Page() {
     setAttendanceRows(data.roster || []);
   }
 
-  function setAttendanceStatus(userId: number, status: 'present' | 'absent' | 'excused') {
+  function setAttendanceStatus(userId: number, status: 'present' | 'absent' | 'late' | 'excused') {
     setAttendanceRows((current) => current.map((row) => row.id === userId ? { ...row, attendance_status: status } : row));
   }
 
@@ -203,10 +203,10 @@ export default function Page() {
                       : (item.presenter_name || students.find((s) => s.id === item.presenter_user_id)?.full_name || '—')}</td>
                     <td>{item.repeat_mode === 'daily' ? 'Daily' : 'Once'}</td>
                     <td><span className={`badge badge-${item.status === 'done' ? 'approved' : item.status === 'cancelled' ? 'rejected' : 'pending'}`}>{item.status}</span></td>
-                    <td><div className="event-actions" style={{ gap: '0.25rem' }}>
-                      <button type="button" className="btn-outline" onClick={() => openAttendance(item)}>Attendance</button>
-                      <button type="button" style={{ padding: '0.3rem 0.6rem', fontSize: '0.72rem', background: '#dc2626', color: 'white', border: 'none', borderRadius: '0.375rem', cursor: 'pointer' }} onClick={() => setDeleteScheduleTarget(item)}>Delete</button>
-                    </div></td>
+                    <td><MoreDropdown items={[
+                      { label: 'Attendance', onClick: () => openAttendance(item), color: '#1a5fa8' },
+                      { label: 'Delete', onClick: () => setDeleteScheduleTarget(item), color: '#dc2626' },
+                    ]} /></td>
                   </tr>
                 ))}
                 {!schedules.length ? <tr><td colSpan={8}><div className="empty-state"><p>No daily activities added yet.</p></div></td></tr> : null}
@@ -367,6 +367,7 @@ export default function Page() {
                   <td>
                     <div className="event-actions">
                       <button type="button" className={row.attendance_status === 'present' ? 'attend-present active' : 'attend-present'} onClick={() => setAttendanceStatus(row.id, 'present')}>Present</button>
+                      <button type="button" className={row.attendance_status === 'late' ? 'attend-late active' : 'attend-late'} onClick={() => setAttendanceStatus(row.id, 'late')}>Late</button>
                       <button type="button" className={row.attendance_status === 'absent' ? 'attend-absent active' : 'attend-absent'} onClick={() => setAttendanceStatus(row.id, 'absent')}>Absent</button>
                       <button type="button" className={row.attendance_status === 'excused' ? 'attend-excused active' : 'attend-excused'} onClick={() => setAttendanceStatus(row.id, 'excused')}>Excused</button>
                     </div>

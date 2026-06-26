@@ -211,9 +211,14 @@ async function getAttendanceSummary(req, res) {
            ),
            0
          ) AS attendance_rate
-       FROM event_attendance a
-       WHERE a.user_id = ?`,
-      [lateWeight, id]
+       FROM (
+         SELECT user_id, status FROM event_attendance WHERE user_id = ?
+         UNION ALL
+         SELECT user_id, status FROM daily_schedule_attendance WHERE user_id = ?
+         UNION ALL
+         SELECT user_id, status FROM program_routine_attendance WHERE user_id = ?
+       ) a`,
+      [lateWeight, id, id, id]
     );
     res.json(rows[0]);
   } catch (err) {
@@ -244,7 +249,13 @@ async function getAttendanceOverview(req, res) {
               ) AS attendance_rate
        FROM users u
        LEFT JOIN profiles p ON p.user_id = u.id
-       LEFT JOIN event_attendance a ON a.user_id = u.id
+       LEFT JOIN (
+         SELECT user_id, status FROM event_attendance
+         UNION ALL
+         SELECT user_id, status FROM daily_schedule_attendance
+         UNION ALL
+         SELECT user_id, status FROM program_routine_attendance
+       ) a ON a.user_id = u.id
        WHERE u.role='student' AND u.status='approved'${clause}
        GROUP BY u.id, p.full_name, p.institution, p.course
        ORDER BY attendance_rate DESC, p.full_name IS NULL ASC, p.full_name ASC`,
@@ -277,9 +288,14 @@ async function getMyAttendance(req, res) {
            ),
            0
          ) AS attendance_rate
-       FROM event_attendance a
-       WHERE a.user_id = ?`,
-      [lateWeight, req.user.id]
+       FROM (
+         SELECT user_id, status FROM event_attendance WHERE user_id = ?
+         UNION ALL
+         SELECT user_id, status FROM daily_schedule_attendance WHERE user_id = ?
+         UNION ALL
+         SELECT user_id, status FROM program_routine_attendance WHERE user_id = ?
+       ) a`,
+      [lateWeight, req.user.id, req.user.id, req.user.id]
     );
 
     const [historyRows] = await pool.query(

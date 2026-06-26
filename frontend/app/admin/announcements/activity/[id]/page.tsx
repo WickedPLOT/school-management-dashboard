@@ -4,7 +4,7 @@ import { useEffect, useState } from 'react';
 import { useParams, useRouter } from 'next/navigation';
 import { apiFetch } from '@/lib/api';
 
-type RosterRow = { id: number; email: string; full_name?: string; attendance_status?: 'present' | 'absent' | 'excused'; };
+type RosterRow = { id: number; email: string; full_name?: string; attendance_status?: 'present' | 'absent' | 'late' | 'excused'; };
 type Schedule = { id: number; title: string; schedule_date: string; start_time?: string; section_scope: string; repeat_mode: string; presenter_name?: string; };
 
 export default function Page() {
@@ -72,7 +72,7 @@ export default function Page() {
                     <td><strong>{row.full_name || row.email}</strong><div className="table-muted">{row.email}</div></td>
                     <td>
                       <div className="event-actions">
-                        {(['present', 'absent', 'excused'] as const).map((status) => (
+                        {(['present', 'late', 'absent', 'excused'] as const).map((status) => (
                           <button key={status} type="button"
                             className={`attend-${status} ${row.attendance_status === status ? 'active' : ''}`}
                             style={{ width: 'auto', padding: '0.45rem 0.8rem' }}
