@@ -259,7 +259,7 @@ async function getAttendanceOverview(req, res) {
        WHERE u.role='student' AND u.status='approved'${clause}
        GROUP BY u.id, p.full_name, p.institution, p.course
        ORDER BY attendance_rate DESC, p.full_name IS NULL ASC, p.full_name ASC`,
-      [...params, lateWeight]
+      [lateWeight, ...params]
     );
     res.json(rows);
   } catch (err) {
