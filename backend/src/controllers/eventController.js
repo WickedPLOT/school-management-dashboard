@@ -354,9 +354,14 @@ async function getStudentDashboard(req, res) {
              ),
              0
            ) AS attendance_rate
-         FROM event_attendance a
-         WHERE a.user_id = ?`,
-        [lateWeight, req.user.id]
+         FROM (
+           SELECT user_id, status FROM event_attendance WHERE user_id = ?
+           UNION ALL
+           SELECT user_id, status FROM daily_schedule_attendance WHERE user_id = ?
+           UNION ALL
+           SELECT user_id, status FROM program_routine_attendance WHERE user_id = ?
+         ) a`,
+        [lateWeight, req.user.id, req.user.id, req.user.id]
       ),
       pool.query(
         `SELECT id, title, status, category, created_at AS updated_at
