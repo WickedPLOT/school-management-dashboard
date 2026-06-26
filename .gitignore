@@ -1,0 +1,12 @@
+# environment files
+backend/.env
+frontend/.env.local
+.env
+.env.*
+!.env.example
+
+# dependencies
+node_modules/
+
+# database credentials
+db-credentials.txt
