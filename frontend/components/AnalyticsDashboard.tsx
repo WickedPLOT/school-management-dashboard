@@ -515,7 +515,7 @@ export default function AnalyticsDashboard({
             ))}
           </div>
 
-          <div style={{ display: 'grid', gap: '1rem', gridTemplateColumns: 'repeat(auto-fit, minmax(280px, 1fr))', marginTop: '1rem', alignItems: 'start' }}>
+          <div style={{ display: 'grid', gap: '1rem', gridTemplateColumns: 'repeat(auto-fill, minmax(300px, 1fr))', marginTop: '1rem', alignItems: 'start' }}>
             {user?.role === 'super_admin' ? <BarChartCard title="Center Comparison" data={sectionComparisonBars} /> : null}
             <BarChartCard title="Most Popular Courses" data={courseBars} />
             <BarChartCard title="Dorm Occupancy" data={dormOccupancyBars} suffix="%" maxValue={100} />
