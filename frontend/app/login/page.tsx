@@ -38,7 +38,7 @@ export default function LoginPage() {
           <p>HAYRAT CENTER</p>
         </div>
 
-        <div style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>
+        <form onSubmit={(e) => { e.preventDefault(); handleSubmit(); }} style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>
           <div className="field">
             <label>Email Address</label>
             <input type="email" required placeholder="you@example.com"
@@ -50,10 +50,10 @@ export default function LoginPage() {
               value={form.password} onChange={e => setForm({ ...form, password: e.target.value })} />
           </div>
           {error && <div className="error-msg">{error}</div>}
-          <button type="button" className="btn-primary" disabled={loading} onClick={handleSubmit} style={{ marginTop: '0.5rem' }}>
+          <button type="submit" className="btn-primary" disabled={loading} style={{ marginTop: '0.5rem' }}>
             {loading ? 'Signing in...' : 'Sign In'}
           </button>
-        </div>
+        </form>
       </div>
     </div>
   );

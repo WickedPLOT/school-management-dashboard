@@ -558,7 +558,8 @@ async function deleteRoutine(req, res) {
   const { id } = req.params;
   const [existingRows] = await pool.query('SELECT * FROM program_routines WHERE id = ?', [id]);
   if (!existingRows.length) return res.status(404).json({ error: 'Routine item not found' });
-  if (req.user.role !== 'super_admin' && existingRows[0].section_scope !== req.user.section) {
+  const scope = existingRows[0].section_scope;
+  if (req.user.role !== 'super_admin' && scope !== 'all' && scope !== req.user.section) {
     return res.status(403).json({ error: 'Forbidden' });
   }
   await pool.query('DELETE FROM program_routines WHERE id = ?', [id]);

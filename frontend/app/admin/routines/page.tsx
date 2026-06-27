@@ -181,6 +181,7 @@ export default function Page() {
       setDeleteTarget(null);
       setSuccess('Routine item deleted.');
     } catch (err) {
+      setDeleteTarget(null);
       if (err instanceof Error) setError(err.message);
     }
   }
