@@ -3,7 +3,7 @@
 /* ─── Variables ─────────────────────────────────────────── */
 :root {
   --green:        #1a5c38;
-  --green-dark:   #0f2b1a;
+  --green-dark:   #134429;
   --green-light:  #e8f2ec;
   --gold:         #c9a84c;
   --blue:         #2563eb;
@@ -181,7 +181,7 @@ button { font-family: inherit; cursor: pointer; }
 /* Sidebar */
 .sidebar {
   width: var(--sidebar-w);
-  background: #1a2e23;
+  background: var(--green);
   display: flex;
   flex-direction: column;
   padding: 1.25rem 0.875rem;
@@ -220,11 +220,11 @@ button { font-family: inherit; cursor: pointer; }
 }
 
 .sidebar-section-badge {
-  background: #2d6b45;
+  background: rgba(255,255,255,0.08);
   border: 1px solid rgba(255,255,255,0.15);
   border-radius: 0.5rem;
   padding: 0.3rem 0.75rem;
-  color: #fff;
+  color: var(--gold);
   font-size: 0.7rem;
   font-weight: 700;
   text-transform: uppercase;
@@ -256,9 +256,9 @@ button { font-family: inherit; cursor: pointer; }
   text-align: left;
 }
 .nav-item svg { flex-shrink: 0; opacity: 0.8; }
-.nav-item:hover { background: rgba(255,255,255,0.08); color: white; }
+.nav-item:hover { background: rgba(255,255,255,0.1); color: white; }
 .nav-item:hover svg { opacity: 1; }
-.nav-item.active { background: #2d6b45; color: white; font-weight: 600; }
+.nav-item.active { background: rgba(255,255,255,0.16); color: white; font-weight: 600; }
 .nav-item.active svg { opacity: 1; }
 
 /* Nav groups */
@@ -448,12 +448,7 @@ button { font-family: inherit; cursor: pointer; }
   box-shadow: var(--shadow);
   overflow: hidden;
   width: 100%;
-  border-top: 3px solid var(--green);
 }
-.content-card:nth-child(2n) { border-top-color: var(--blue); }
-.content-card:nth-child(3n) { border-top-color: var(--teal); }
-.content-card:nth-child(4n) { border-top-color: var(--purple); }
-.content-card:nth-child(5n) { border-top-color: var(--orange); }
 .content-card-header {
   padding: 1.125rem 1.5rem;
   border-bottom: 1px solid var(--border);
