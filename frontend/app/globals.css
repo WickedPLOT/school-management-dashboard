@@ -1642,7 +1642,8 @@ button { font-family: inherit; cursor: pointer; }
 }
 
 .page-modal {
-  width: min(100%, 520px);
+  width: 100%;
+  max-width: 520px;
   border: 1px solid #d7e6dc;
   border-radius: 1rem;
   background: white;
