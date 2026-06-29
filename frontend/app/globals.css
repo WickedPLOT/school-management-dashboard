@@ -6,6 +6,16 @@
   --green-dark:   #0f2b1a;
   --green-light:  #e8f2ec;
   --gold:         #c9a84c;
+  --blue:         #2563eb;
+  --blue-light:   #eff6ff;
+  --purple:       #7c3aed;
+  --purple-light: #f5f3ff;
+  --orange:       #ea580c;
+  --orange-light: #fff7ed;
+  --teal:         #0d9488;
+  --teal-light:   #f0fdfa;
+  --rose:         #e11d48;
+  --rose-light:   #fff1f2;
   --bg:           #f4f5f7;
   --card:         #ffffff;
   --border:       #e5e7eb;
@@ -124,6 +134,15 @@ button { font-family: inherit; cursor: pointer; }
 }
 .btn-primary:hover:not(:disabled) { background: var(--green-dark); transform: translateY(-1px); }
 .btn-primary:disabled { opacity: 0.5; cursor: not-allowed; }
+
+.btn-blue { background: var(--blue); color: white; border: none; border-radius: 0.625rem; padding: 0.6rem 1rem; font-size: 0.82rem; font-weight: 600; cursor: pointer; transition: background 0.15s, transform 0.1s; }
+.btn-blue:hover { background: #1d4ed8; transform: translateY(-1px); }
+.btn-purple { background: var(--purple); color: white; border: none; border-radius: 0.625rem; padding: 0.6rem 1rem; font-size: 0.82rem; font-weight: 600; cursor: pointer; transition: background 0.15s, transform 0.1s; }
+.btn-purple:hover { background: #6d28d9; transform: translateY(-1px); }
+.btn-orange { background: var(--orange); color: white; border: none; border-radius: 0.625rem; padding: 0.6rem 1rem; font-size: 0.82rem; font-weight: 600; cursor: pointer; transition: background 0.15s, transform 0.1s; }
+.btn-orange:hover { background: #c2410c; transform: translateY(-1px); }
+.btn-teal { background: var(--teal); color: white; border: none; border-radius: 0.625rem; padding: 0.6rem 1rem; font-size: 0.82rem; font-weight: 600; cursor: pointer; transition: background 0.15s, transform 0.1s; }
+.btn-teal:hover { background: #0f766e; transform: translateY(-1px); }
 
 .error-msg {
   color: #b91c1c;
@@ -429,7 +448,12 @@ button { font-family: inherit; cursor: pointer; }
   box-shadow: var(--shadow);
   overflow: hidden;
   width: 100%;
+  border-top: 3px solid var(--green);
 }
+.content-card:nth-child(2n) { border-top-color: var(--blue); }
+.content-card:nth-child(3n) { border-top-color: var(--teal); }
+.content-card:nth-child(4n) { border-top-color: var(--purple); }
+.content-card:nth-child(5n) { border-top-color: var(--orange); }
 .content-card-header {
   padding: 1.125rem 1.5rem;
   border-bottom: 1px solid var(--border);
@@ -489,6 +513,9 @@ button { font-family: inherit; cursor: pointer; }
 .badge-partial   { background: #fff1c2; color: #a16207; }
 .badge-failed    { background: #fee2e2; color: #991b1b; }
 .badge-brothers  { background: var(--green-light); color: var(--green); }
+.badge-scheduled { background: #eff6ff; color: #2563eb; }
+.badge-draft     { background: #f5f3ff; color: #7c3aed; }
+.badge-active    { background: #f0fdfa; color: #0d9488; }
 .badge-sisters   { background: #ede9fe; color: #5b21b6; }
 .badge-reading   { background: #dbeafe; color: #1e40af; }
 .badge-completed { background: #d1fae5; color: #065f46; }
@@ -736,7 +763,7 @@ button { font-family: inherit; cursor: pointer; }
 .section-outline-header h2 {
   font-size: 0.96rem;
   font-weight: 700;
-  color: #1d3a29;
+  color: var(--text);
 }
 
 .section-outline-header p {

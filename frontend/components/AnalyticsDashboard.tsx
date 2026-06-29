@@ -452,12 +452,12 @@ export default function AnalyticsDashboard({
   ];
 
   const cards = [
-    { label: 'Approved Students', value: scopedStudents.length },
-    { label: 'Pending Approvals', value: scopedPending.length },
-    { label: 'Attendance Average', value: `${avgAttendance}%` },
-    { label: 'Occupancy Rate', value: `${occupancyRate}%` },
-    { label: 'Open Issues', value: openIssues.length },
-    { label: 'Delivered Messages', value: deliveredMessages },
+    { label: 'Approved Students', value: scopedStudents.length, color: '#2563eb', bg: '#eff6ff' },
+    { label: 'Pending Approvals', value: scopedPending.length, color: '#ea580c', bg: '#fff7ed' },
+    { label: 'Attendance Average', value: `${avgAttendance}%`, color: '#0d9488', bg: '#f0fdfa' },
+    { label: 'Occupancy Rate', value: `${occupancyRate}%`, color: '#7c3aed', bg: '#f5f3ff' },
+    { label: 'Open Issues', value: openIssues.length, color: '#e11d48', bg: '#fff1f2' },
+    { label: 'Delivered Messages', value: deliveredMessages, color: '#c9a84c', bg: '#fefce8' },
   ];
 
   return (
@@ -506,9 +506,12 @@ export default function AnalyticsDashboard({
 
           <div className="stats-grid">
             {cards.map((card) => (
-              <div key={card.label} className="stat-card">
+              <div key={card.label} className="stat-card" style={{ borderLeft: `4px solid ${card.color}` }}>
+                <div style={{ width: 40, height: 40, borderRadius: '0.625rem', background: card.bg, display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
+                  <span style={{ fontSize: '1.1rem', fontWeight: 800, color: card.color }}>{typeof card.value === 'string' ? '%' : '#'}</span>
+                </div>
                 <div>
-                  <h3>{card.value}</h3>
+                  <h3 style={{ color: card.color }}>{card.value}</h3>
                   <p>{card.label}</p>
                 </div>
               </div>
