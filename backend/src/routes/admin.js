@@ -89,6 +89,8 @@ const {
   listMeetings,
   createMeeting,
   updateMeeting,
+  getScheduleRoster,
+  saveScheduleRoster,
 } = require('../controllers/residentLifeController');
 const {
   listPlans,
@@ -192,6 +194,8 @@ router.patch('/daily-schedule/:id',       auth, isAdmin, updateDailySchedule);
 router.delete('/daily-schedule/:id',      auth, isAdmin, deleteDailySchedule);
 router.get('/daily-schedule/:id/attendance', auth, isAdmin, getDailyScheduleAttendance);
 router.put('/daily-schedule/:id/attendance', auth, isAdmin, saveDailyScheduleAttendance);
+router.get('/daily-schedule/:id/roster', auth, isAdmin, getScheduleRoster);
+router.put('/daily-schedule/:id/roster', auth, isAdmin, saveScheduleRoster);
 router.get('/routines',                   auth, isAdmin, listRoutines);
 router.post('/routines',                  auth, isAdmin, createRoutine);
 router.patch('/routines/:id',             auth, isAdmin, updateRoutine);

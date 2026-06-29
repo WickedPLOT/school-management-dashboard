@@ -40,6 +40,10 @@ export default function Page() {
   const [success, setSuccess] = useState('');
   const [deleteScheduleTarget, setDeleteScheduleTarget] = useState<Schedule | null>(null);
 
+  const [rosterTarget, setRosterTarget] = useState<Schedule | null>(null);
+  const [rosterEntries, setRosterEntries] = useState<Array<{ roster_date: string; presenter_user_id: string; presenter_name: string; full_name?: string }>>([]);
+  const [rosterSaving, setRosterSaving] = useState(false);
+
   async function load() {
     try {
       const stored = localStorage.getItem('user');
@@ -134,6 +138,39 @@ export default function Page() {
     }
   }
 
+  async function openRoster(item: Schedule) {
+    setRosterTarget(item);
+    try {
+      const data = await apiFetch(`/admin/daily-schedule/${item.id}/roster`);
+      // Generate 7 days starting from Monday of current week
+      const today = new Date();
+      const monday = new Date(today);
+      monday.setDate(today.getDate() - ((today.getDay() + 6) % 7));
+      const week: typeof rosterEntries = [];
+      for (let i = 0; i < 7; i++) {
+        const d = new Date(monday);
+        d.setDate(monday.getDate() + i);
+        const dateStr = d.toISOString().split('T')[0];
+        const existing = data.find((r: any) => r.roster_date?.split('T')[0] === dateStr);
+        week.push({ roster_date: dateStr, presenter_user_id: existing?.presenter_user_id?.toString() || '', presenter_name: existing?.presenter_name || '', full_name: existing?.full_name || '' });
+      }
+      setRosterEntries(week);
+    } catch (err) { if (err instanceof Error) setError(err.message); }
+  }
+
+  async function saveRoster() {
+    if (!rosterTarget) return;
+    setRosterSaving(true);
+    try {
+      await apiFetch(`/admin/daily-schedule/${rosterTarget.id}/roster`, {
+        method: 'PUT', body: JSON.stringify({ entries: rosterEntries.filter(e => e.presenter_user_id || e.presenter_name) })
+      });
+      setSuccess('Roster saved.');
+      setRosterTarget(null);
+    } catch (err) { if (err instanceof Error) setError(err.message); }
+    finally { setRosterSaving(false); }
+  }
+
   async function saveAttendance() {
     if (!attendanceTarget) return;
     setSaving(true); setError(''); setSuccess('');
@@ -204,6 +241,7 @@ export default function Page() {
                     <td>{item.repeat_mode === 'daily' ? 'Daily' : 'Once'}</td>
                     <td><span className={`badge badge-${item.status === 'done' ? 'approved' : item.status === 'cancelled' ? 'rejected' : 'pending'}`}>{item.status}</span></td>
                     <td><MoreDropdown items={[
+                      { label: 'Roster', onClick: () => openRoster(item), color: '#0f766e' },
                       { label: 'Attendance', onClick: () => openAttendance(item), color: '#1a5fa8' },
                       { label: 'Delete', onClick: () => setDeleteScheduleTarget(item), color: '#dc2626' },
                     ]} /></td>
@@ -383,6 +421,44 @@ export default function Page() {
       {deleteScheduleTarget ? (
         <ConfirmDialog title="Delete daily activity?" message={`This will permanently delete "${deleteScheduleTarget.title}".`} confirmLabel="Delete" tone="danger" onCancel={() => setDeleteScheduleTarget(null)} onConfirm={deleteSchedule} />
       ) : null}
+
+      <Modal open={!!rosterTarget} onClose={() => setRosterTarget(null)} maxWidth="600px">
+        <div className="section-outline-header">
+          <div>
+            <h2>Weekly Roster</h2>
+            <p>{rosterTarget?.title} — assign a presenter for each day</p>
+          </div>
+        </div>
+        <div style={{ padding: '1rem', display: 'grid', gap: '0.75rem' }}>
+          {rosterEntries.map((entry, i) => {
+            const dayName = new Date(entry.roster_date + 'T00:00').toLocaleDateString('en-GB', { weekday: 'long', day: 'numeric', month: 'short' });
+            return (
+              <div key={entry.roster_date} style={{ display: 'grid', gridTemplateColumns: '140px 1fr', gap: '0.5rem', alignItems: 'center' }}>
+                <strong style={{ fontSize: '0.82rem' }}>{dayName}</strong>
+                <select
+                  value={entry.presenter_user_id}
+                  onChange={(e) => {
+                    const updated = [...rosterEntries];
+                    const student = students.find(s => s.id === Number(e.target.value));
+                    updated[i] = { ...entry, presenter_user_id: e.target.value, presenter_name: student?.full_name || '', full_name: student?.full_name || '' };
+                    setRosterEntries(updated);
+                  }}
+                  style={{ fontSize: '0.82rem', padding: '0.4rem 0.5rem', borderRadius: '0.375rem', border: '1px solid var(--border)' }}
+                >
+                  <option value="">— No presenter —</option>
+                  {students.map(s => <option key={s.id} value={s.id}>{s.full_name || s.email}</option>)}
+                </select>
+              </div>
+            );
+          })}
+          <div style={{ display: 'flex', gap: '0.5rem', justifyContent: 'flex-end', marginTop: '0.5rem' }}>
+            <button type="button" className="btn-primary" onClick={saveRoster} disabled={rosterSaving} style={{ width: 'auto', padding: '0.5rem 1.25rem' }}>
+              {rosterSaving ? 'Saving...' : 'Save Roster'}
+            </button>
+            <button type="button" className="btn-outline" onClick={() => setRosterTarget(null)} style={{ width: 'auto' }}>Cancel</button>
+          </div>
+        </div>
+      </Modal>
 
     </div>
   );

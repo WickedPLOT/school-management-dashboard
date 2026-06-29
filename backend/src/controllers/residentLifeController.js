@@ -695,9 +695,12 @@ async function listMyQuranAssignments(req, res) {
 async function listMySchedule(req, res) {
   try {
     const [rows] = await pool.query(
-      `SELECT * FROM daily_schedules
-       WHERE section_scope = ?
-       ORDER BY schedule_date DESC, start_time IS NULL ASC, start_time ASC`,
+      `SELECT s.*, r.presenter_name AS roster_presenter_name, rp.full_name AS roster_presenter_full_name
+       FROM daily_schedules s
+       LEFT JOIN schedule_date_roster r ON r.schedule_id = s.id AND r.roster_date = CURRENT_DATE
+       LEFT JOIN profiles rp ON rp.user_id = r.presenter_user_id
+       WHERE s.section_scope = ?
+       ORDER BY s.schedule_date DESC, s.start_time IS NULL ASC, s.start_time ASC`,
       [req.user.section]
     );
     res.json(rows);
@@ -758,4 +761,42 @@ module.exports = {
   listMySchedule,
   listMyRoutines,
   listMyMeetings,
+  getScheduleRoster,
+  saveScheduleRoster,
 };
+
+// ── Schedule Date Roster ──────────────────────────────────────────────────────
+
+async function getScheduleRoster(req, res) {
+  const { id } = req.params;
+  try {
+    const [rows] = await pool.query(
+      `SELECT r.id, r.roster_date, r.presenter_user_id, r.presenter_name, p.full_name, u.email
+       FROM schedule_date_roster r
+       LEFT JOIN users u ON u.id = r.presenter_user_id
+       LEFT JOIN profiles p ON p.user_id = r.presenter_user_id
+       WHERE r.schedule_id = ?
+       ORDER BY r.roster_date ASC`,
+      [id]
+    );
+    res.json(rows);
+  } catch (err) { res.status(500).json({ error: err.message }); }
+}
+
+async function saveScheduleRoster(req, res) {
+  const { id } = req.params;
+  const { entries = [] } = req.body;
+  if (!entries.length) return res.status(400).json({ error: 'Provide entries array' });
+  try {
+    for (const entry of entries) {
+      if (!entry.roster_date) continue;
+      await pool.query(
+        `INSERT INTO schedule_date_roster (schedule_id, roster_date, presenter_user_id, presenter_name)
+         VALUES (?,?,?,?)
+         ON DUPLICATE KEY UPDATE presenter_user_id = VALUES(presenter_user_id), presenter_name = VALUES(presenter_name)`,
+        [id, entry.roster_date, entry.presenter_user_id || null, entry.presenter_name || null]
+      );
+    }
+    res.json({ message: 'Roster saved' });
+  } catch (err) { res.status(500).json({ error: err.message }); }
+}
