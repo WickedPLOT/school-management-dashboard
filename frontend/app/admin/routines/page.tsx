@@ -226,7 +226,7 @@ export default function Page() {
         )}
       </section>
 
-      <Modal open={showRoutineModal} onClose={() => setShowRoutineModal(false)}>
+      <Modal open={showRoutineModal} onClose={() => setShowRoutineModal(false)} maxWidth="700px">
         <div className="routine-modal">
           <div className="section-outline-header">
             <div>
@@ -270,7 +270,6 @@ export default function Page() {
             <h2>Routine Attendance</h2>
             <p>{attendanceTarget?.title}</p>
           </div>
-          <button type="button" className="btn-outline" style={{ width: 'auto' }} onClick={() => setAttendanceTarget(null)}>Close</button>
         </div>
 
         <div style={{ padding: '1rem' }}>
@@ -321,38 +320,10 @@ export default function Page() {
                       </td>
                       <td>
                         <div style={{ display: 'flex', gap: '0.25rem', flexWrap: 'wrap' }}>
-                          <button
-                            type="button"
-                            className={row.attendance_status === 'present' ? 'btn-primary' : 'btn-outline'}
-                            style={{ fontSize: '0.75rem', padding: '0.375rem 0.625rem', flex: 1 }}
-                            onClick={() => setAttendanceStatus(row.id, 'present')}
-                          >
-                            Present
-                          </button>
-                          <button
-                            type="button"
-                            className={row.attendance_status === 'absent' ? 'btn-danger' : 'btn-outline'}
-                            style={{ fontSize: '0.75rem', padding: '0.375rem 0.625rem', flex: 1 }}
-                            onClick={() => setAttendanceStatus(row.id, 'absent')}
-                          >
-                            Absent
-                          </button>
-                          <button
-                            type="button"
-                            className={row.attendance_status === 'late' ? 'btn-primary' : 'btn-outline'}
-                            style={{ fontSize: '0.75rem', padding: '0.375rem 0.625rem', flex: 1, backgroundColor: row.attendance_status === 'late' ? '#f59e0b' : undefined, borderColor: row.attendance_status === 'late' ? '#f59e0b' : undefined }}
-                            onClick={() => setAttendanceStatus(row.id, 'late')}
-                          >
-                            Late
-                          </button>
-                          <button
-                            type="button"
-                            className={row.attendance_status === 'excused' ? 'btn-primary' : 'btn-outline'}
-                            style={{ fontSize: '0.75rem', padding: '0.375rem 0.625rem', flex: 1 }}
-                            onClick={() => setAttendanceStatus(row.id, 'excused')}
-                          >
-                            Excused
-                          </button>
+                          <button type="button" className={`attend-present ${row.attendance_status === 'present' ? 'active' : ''}`} style={{ fontSize: '0.72rem', padding: '0.35rem 0.6rem', flex: 1 }} onClick={() => setAttendanceStatus(row.id, 'present')}>Present</button>
+                          <button type="button" className={`attend-late ${row.attendance_status === 'late' ? 'active' : ''}`} style={{ fontSize: '0.72rem', padding: '0.35rem 0.6rem', flex: 1 }} onClick={() => setAttendanceStatus(row.id, 'late')}>Late</button>
+                          <button type="button" className={`attend-absent ${row.attendance_status === 'absent' ? 'active' : ''}`} style={{ fontSize: '0.72rem', padding: '0.35rem 0.6rem', flex: 1 }} onClick={() => setAttendanceStatus(row.id, 'absent')}>Absent</button>
+                          <button type="button" className={`attend-excused ${row.attendance_status === 'excused' ? 'active' : ''}`} style={{ fontSize: '0.72rem', padding: '0.35rem 0.6rem', flex: 1 }} onClick={() => setAttendanceStatus(row.id, 'excused')}>Excused</button>
                         </div>
                       </td>
                     </tr>
@@ -367,7 +338,7 @@ export default function Page() {
               {savingAttendance ? 'Saving...' : 'Save Attendance'}
             </button>
             <button type="button" className="btn-outline" onClick={() => setAttendanceTarget(null)} style={{ width: 'auto' }}>
-              Cancel
+              End Attendance
             </button>
           </div>
         </div>
