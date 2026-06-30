@@ -31,45 +31,54 @@ const COUNTRIES = [
 
 const KENYAN_COURSES = [
   // Medical & Health
-  'Medicine and Surgery', 'Pharmacy', 'Nursing', 'Clinical Medicine', 'Dental Surgery',
-  'Public Health', 'Medical Laboratory Science', 'Radiography', 'Physiotherapy', 'Optometry',
+  'Bachelor of Medicine and Surgery', 'Bachelor of Pharmacy', 'Bachelor of Nursing', 'Bachelor of Clinical Medicine',
+  'Bachelor of Dental Surgery', 'Bachelor of Public Health', 'Bachelor of Medical Laboratory Science',
+  'Bachelor of Radiography', 'Bachelor of Physiotherapy', 'Bachelor of Optometry',
   // Engineering
-  'Civil Engineering', 'Mechanical Engineering', 'Electrical Engineering', 'Electrical and Electronic Engineering',
-  'Computer Engineering', 'Chemical Engineering', 'Aerospace Engineering', 'Mechatronics Engineering',
-  'Telecommunication Engineering', 'Biomedical Engineering', 'Environmental Engineering',
+  'Bachelor of Civil Engineering', 'Bachelor of Mechanical Engineering', 'Bachelor of Electrical Engineering',
+  'Bachelor of Electrical and Electronic Engineering', 'Bachelor of Computer Engineering',
+  'Bachelor of Chemical Engineering', 'Bachelor of Aerospace Engineering', 'Bachelor of Mechatronics Engineering',
+  'Bachelor of Telecommunication Engineering', 'Bachelor of Biomedical Engineering', 'Bachelor of Environmental Engineering',
   // IT & Computer Science
-  'Computer Science', 'Information Technology', 'Software Engineering', 'Cyber Security',
-  'Data Science', 'Artificial Intelligence', 'Information Systems',
+  'Bachelor of Computer Science', 'Bachelor of Information Technology', 'Bachelor of Software Engineering',
+  'Bachelor of Cyber Security', 'Bachelor of Data Science', 'Bachelor of Artificial Intelligence',
+  'Bachelor of Information Systems',
   // Business & Commerce
-  'Business Administration', 'Commerce', 'Accounting', 'Finance', 'Economics',
-  'Marketing', 'Human Resource Management', 'Supply Chain Management', 'Entrepreneurship',
-  'Insurance and Risk Management', 'Banking and Finance',
+  'Bachelor of Business Administration', 'Bachelor of Commerce', 'Bachelor of Accounting',
+  'Bachelor of Finance', 'Bachelor of Economics', 'Bachelor of Marketing',
+  'Bachelor of Human Resource Management', 'Bachelor of Supply Chain Management',
+  'Bachelor of Entrepreneurship', 'Bachelor of Insurance and Risk Management', 'Bachelor of Banking and Finance',
   // Law
-  'Law (LLB)',
+  'Bachelor of Law (LLB)',
   // Education
-  'Education (Arts)', 'Education (Science)', 'Early Childhood Education',
-  'Special Needs Education', 'Educational Psychology',
+  'Bachelor of Education (Arts)', 'Bachelor of Education (Science)', 'Bachelor of Early Childhood Education',
+  'Bachelor of Special Needs Education', 'Bachelor of Educational Psychology',
   // Architecture & Construction
-  'Architecture', 'Quantity Surveying', 'Construction Management', 'Real Estate',
-  'Urban and Regional Planning', 'Land Surveying',
+  'Bachelor of Architecture', 'Bachelor of Quantity Surveying', 'Bachelor of Construction Management',
+  'Bachelor of Real Estate', 'Bachelor of Urban and Regional Planning', 'Bachelor of Land Surveying',
   // Agriculture
-  'Agriculture', 'Agribusiness', 'Food Science and Technology', 'Horticulture',
-  'Animal Science', 'Environmental Science', 'Forestry',
+  'Bachelor of Agriculture', 'Bachelor of Agribusiness', 'Bachelor of Food Science and Technology',
+  'Bachelor of Horticulture', 'Bachelor of Animal Science', 'Bachelor of Environmental Science',
+  'Bachelor of Forestry',
   // Arts & Social Sciences
-  'Communication and Media Studies', 'Journalism', 'Public Relations',
-  'Political Science', 'Sociology', 'Psychology', 'Social Work',
-  'International Relations', 'Criminology', 'Gender Studies',
+  'Bachelor of Communication and Media Studies', 'Bachelor of Journalism', 'Bachelor of Public Relations',
+  'Bachelor of Political Science', 'Bachelor of Sociology', 'Bachelor of Psychology',
+  'Bachelor of Social Work', 'Bachelor of International Relations', 'Bachelor of Criminology',
   // Sciences
-  'Mathematics', 'Statistics', 'Physics', 'Chemistry', 'Biology',
-  'Biochemistry', 'Microbiology', 'Geology', 'Actuarial Science',
+  'Bachelor of Mathematics', 'Bachelor of Statistics', 'Bachelor of Physics', 'Bachelor of Chemistry',
+  'Bachelor of Biology', 'Bachelor of Biochemistry', 'Bachelor of Microbiology',
+  'Bachelor of Geology', 'Bachelor of Actuarial Science',
   // Hospitality & Tourism
-  'Hospitality Management', 'Tourism Management', 'Culinary Arts', 'Events Management',
+  'Bachelor of Hospitality Management', 'Bachelor of Tourism Management',
+  'Bachelor of Culinary Arts', 'Bachelor of Events Management',
   // Aviation
-  'Aviation Management', 'Aeronautical Engineering',
+  'Bachelor of Aviation Management',
   // Diploma & Certificates
   'Diploma in IT', 'Diploma in Business Management', 'Diploma in Clinical Medicine',
   'Diploma in Nursing', 'Diploma in Education', 'Diploma in Engineering',
   'Certificate in Social Work', 'Certificate in Community Development',
+  // Other
+  'Other',
 ];
 
 const PERSONAL_FIELDS = [
