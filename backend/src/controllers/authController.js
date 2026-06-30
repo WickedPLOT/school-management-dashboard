@@ -5,6 +5,13 @@ const pool = require('../config/db');
 const { issueVerificationCode, verifyCode } = require('../services/communicationService');
 const { getAppSettings } = require('../services/settingsService');
 
+function toTitleCase(str) {
+  if (!str) return str;
+  return str.replace(/\b\w+/g, w => w[0].toUpperCase() + w.slice(1).toLowerCase())
+    .replace(/\b(Of|In|And|The|For|On|At|To|A|An)\b/g, m => m.toLowerCase())
+    .replace(/^./, c => c.toUpperCase());
+}
+
 const DOCUMENT_TYPES = ['passport_document', 'id_front', 'id_back'];
 
 async function ensureStudentDocumentsTable(clientOrPool = pool) {
@@ -137,7 +144,7 @@ async function register(req, res) {
     await client.query(
       `INSERT INTO profiles (user_id, full_name, phone, gender, institution, course, year_of_study, quran_level, home_county)
        VALUES (?,?,?,?,?,?,?,?,?)`,
-      [userId, full_name, phone, gender, institution, course, year_of_study || null, quran_level, home_county]
+      [userId, full_name, phone, gender, toTitleCase(institution), toTitleCase(course), year_of_study || null, quran_level, home_county]
     );
 
     await client.query(

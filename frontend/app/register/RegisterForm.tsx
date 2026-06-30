@@ -74,8 +74,17 @@ const KENYAN_COURSES = [
   // Aviation
   'Bachelor of Aviation Management',
   // Diploma & Certificates
-  'Diploma in IT', 'Diploma in Business Management', 'Diploma in Clinical Medicine',
-  'Diploma in Nursing', 'Diploma in Education', 'Diploma in Engineering',
+  'Diploma in Information Technology', 'Diploma in Computer Science', 'Diploma in Software Engineering',
+  'Diploma in Business Management', 'Diploma in Business Administration',
+  'Diploma in Clinical Medicine', 'Diploma in Nursing', 'Diploma in Pharmacy',
+  'Diploma in Public Health', 'Diploma in Medical Laboratory Science',
+  'Diploma in Education (Arts)', 'Diploma in Education (Science)', 'Diploma in Early Childhood Education',
+  'Diploma in Civil Engineering', 'Diploma in Mechanical Engineering', 'Diploma in Electrical Engineering',
+  'Diploma in Accounting', 'Diploma in Supply Chain Management', 'Diploma in Human Resource Management',
+  'Diploma in Journalism', 'Diploma in Communication', 'Diploma in Social Work',
+  'Diploma in Hospitality Management', 'Diploma in Tourism Management',
+  'Diploma in Agriculture', 'Diploma in Food Science and Technology',
+  'Certificate in Information Technology', 'Certificate in Business Management',
   'Certificate in Social Work', 'Certificate in Community Development',
   // Other
   'Other',

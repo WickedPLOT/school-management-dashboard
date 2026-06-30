@@ -1,6 +1,13 @@
 const pool = require('../config/db');
 const { getAppSettings } = require('../services/settingsService');
 
+function toTitleCase(str) {
+  if (!str) return str;
+  return str.replace(/\b\w+/g, w => w[0].toUpperCase() + w.slice(1).toLowerCase())
+    .replace(/\b(Of|In|And|The|For|On|At|To|A|An)\b/g, m => m.toLowerCase())
+    .replace(/^./, c => c.toUpperCase());
+}
+
 const DOCUMENT_TYPES = ['id_front', 'id_back', 'passport_document', 'good_conduct', 'other_document'];
 
 async function ensureStudentDocumentsTable(clientOrPool = pool) {
@@ -134,8 +141,8 @@ async function upsertProfile(req, res) {
         full_name,
         phone,
         gender,
-        institution,
-        course,
+        toTitleCase(institution),
+        toTitleCase(course),
         year_of_study,
         quran_level,
         home_county,
