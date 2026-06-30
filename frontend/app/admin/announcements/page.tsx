@@ -417,7 +417,6 @@ export default function Page() {
         </div>
         <div style={{ display: 'flex', gap: '0.6rem', justifyContent: 'flex-end', padding: '1rem', borderTop: '1px solid var(--border)' }}>
           <button type="button" className="btn-primary" onClick={saveAttendance} disabled={saving} style={{ width: 'auto', paddingInline: '1.25rem' }}>{saving ? 'Saving...' : 'Save Attendance'}</button>
-          <button type="button" className="btn-outline" onClick={() => setAttendanceTarget(null)} style={{ width: 'auto' }}>End Attendance</button>
         </div>
       </Modal>
 

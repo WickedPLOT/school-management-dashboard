@@ -337,9 +337,6 @@ export default function Page() {
             <button type="button" className="btn-primary" onClick={saveAttendance} disabled={savingAttendance} style={{ width: 'auto', paddingInline: '1.25rem' }}>
               {savingAttendance ? 'Saving...' : 'Save Attendance'}
             </button>
-            <button type="button" className="btn-outline" onClick={() => setAttendanceTarget(null)} style={{ width: 'auto' }}>
-              End Attendance
-            </button>
           </div>
         </div>
       </Modal>
