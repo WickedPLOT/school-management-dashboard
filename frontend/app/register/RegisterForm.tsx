@@ -5,13 +5,80 @@ import { apiFetch } from '@/lib/api';
 import PasswordInput from '@/components/PasswordInput';
 import { PLATFORM_NAME } from '@/lib/centers';
 
+const COUNTRIES = [
+  // East African countries first
+  'Kenya', 'Tanzania', 'Uganda', 'Rwanda', 'Burundi', 'South Sudan', 'Somalia', 'Ethiopia', 'Eritrea', 'Djibouti',
+  // Rest of Africa
+  'Algeria', 'Angola', 'Benin', 'Botswana', 'Burkina Faso', 'Cameroon', 'Cape Verde', 'Central African Republic',
+  'Chad', 'Comoros', 'Congo (Brazzaville)', 'Congo (DRC)', 'Côte d\'Ivoire', 'Egypt', 'Equatorial Guinea',
+  'Eswatini', 'Gabon', 'Gambia', 'Ghana', 'Guinea', 'Guinea-Bissau', 'Lesotho', 'Liberia', 'Libya',
+  'Madagascar', 'Malawi', 'Mali', 'Mauritania', 'Mauritius', 'Morocco', 'Mozambique', 'Namibia', 'Niger',
+  'Nigeria', 'Senegal', 'Seychelles', 'Sierra Leone', 'South Africa', 'Sudan', 'Togo', 'Tunisia',
+  'Zambia', 'Zimbabwe',
+  // Middle East
+  'Bahrain', 'Iraq', 'Jordan', 'Kuwait', 'Lebanon', 'Oman', 'Palestine', 'Qatar', 'Saudi Arabia',
+  'Syria', 'Turkey', 'United Arab Emirates', 'Yemen',
+  // Asia
+  'Afghanistan', 'Bangladesh', 'China', 'India', 'Indonesia', 'Iran', 'Japan', 'Malaysia', 'Pakistan',
+  'Philippines', 'South Korea', 'Sri Lanka', 'Thailand', 'Vietnam',
+  // Europe
+  'France', 'Germany', 'Italy', 'Netherlands', 'Norway', 'Spain', 'Sweden', 'Switzerland', 'United Kingdom',
+  // Americas
+  'Brazil', 'Canada', 'Mexico', 'United States',
+  // Oceania
+  'Australia', 'New Zealand',
+];
+
+const KENYAN_COURSES = [
+  // Medical & Health
+  'Medicine and Surgery', 'Pharmacy', 'Nursing', 'Clinical Medicine', 'Dental Surgery',
+  'Public Health', 'Medical Laboratory Science', 'Radiography', 'Physiotherapy', 'Optometry',
+  // Engineering
+  'Civil Engineering', 'Mechanical Engineering', 'Electrical Engineering', 'Electrical and Electronic Engineering',
+  'Computer Engineering', 'Chemical Engineering', 'Aerospace Engineering', 'Mechatronics Engineering',
+  'Telecommunication Engineering', 'Biomedical Engineering', 'Environmental Engineering',
+  // IT & Computer Science
+  'Computer Science', 'Information Technology', 'Software Engineering', 'Cyber Security',
+  'Data Science', 'Artificial Intelligence', 'Information Systems',
+  // Business & Commerce
+  'Business Administration', 'Commerce', 'Accounting', 'Finance', 'Economics',
+  'Marketing', 'Human Resource Management', 'Supply Chain Management', 'Entrepreneurship',
+  'Insurance and Risk Management', 'Banking and Finance',
+  // Law
+  'Law (LLB)',
+  // Education
+  'Education (Arts)', 'Education (Science)', 'Early Childhood Education',
+  'Special Needs Education', 'Educational Psychology',
+  // Architecture & Construction
+  'Architecture', 'Quantity Surveying', 'Construction Management', 'Real Estate',
+  'Urban and Regional Planning', 'Land Surveying',
+  // Agriculture
+  'Agriculture', 'Agribusiness', 'Food Science and Technology', 'Horticulture',
+  'Animal Science', 'Environmental Science', 'Forestry',
+  // Arts & Social Sciences
+  'Communication and Media Studies', 'Journalism', 'Public Relations',
+  'Political Science', 'Sociology', 'Psychology', 'Social Work',
+  'International Relations', 'Criminology', 'Gender Studies',
+  // Sciences
+  'Mathematics', 'Statistics', 'Physics', 'Chemistry', 'Biology',
+  'Biochemistry', 'Microbiology', 'Geology', 'Actuarial Science',
+  // Hospitality & Tourism
+  'Hospitality Management', 'Tourism Management', 'Culinary Arts', 'Events Management',
+  // Aviation
+  'Aviation Management', 'Aeronautical Engineering',
+  // Diploma & Certificates
+  'Diploma in IT', 'Diploma in Business Management', 'Diploma in Clinical Medicine',
+  'Diploma in Nursing', 'Diploma in Education', 'Diploma in Engineering',
+  'Certificate in Social Work', 'Certificate in Community Development',
+];
+
 const PERSONAL_FIELDS = [
   { name: 'full_name',   label: 'Full Name',          type: 'text',   required: true,  span: 2 },
   { name: 'email',       label: 'Email Address',      type: 'email',  required: true },
   { name: 'phone',       label: 'Phone Number',       type: 'text',   required: true },
   { name: 'gender',      label: 'Gender',             type: 'select', required: true,  options: ['male', 'female'] },
   { name: 'nationality', label: 'Nationality',        type: 'text',   required: true },
-  { name: 'country',     label: 'Country',            type: 'text',   required: true },
+  { name: 'country',     label: 'Country',            type: 'select', required: true,  options: COUNTRIES },
   { name: 'county',      label: 'County',             type: 'text',   required: true },
   { name: 'sub_county',  label: 'Sub-County',         type: 'text',   required: false },
   { name: 'home_county', label: 'Home County / Area', type: 'text',   required: false },
@@ -58,7 +125,7 @@ const KENYAN_UNIVERSITIES = [
 
 const ACADEMIC_FIELDS = [
   { name: 'institution',   label: 'Institution',                  type: 'select',   required: true,  span: 2, options: KENYAN_UNIVERSITIES },
-  { name: 'course',        label: 'Course / Programme',           type: 'text',   required: true },
+  { name: 'course',        label: 'Course / Programme',           type: 'select',   required: true, options: KENYAN_COURSES },
   { name: 'year_of_study', label: 'Year of Study',                type: 'number', required: false },
   { name: 'entry_date',    label: 'Date You Joined the Center',   type: 'date',   required: false },
   { name: 'quran_level',   label: "Qur'an Level",                 type: 'text',   required: false, span: 2 },

@@ -4137,26 +4137,21 @@ button { font-family: inherit; cursor: pointer; }
 .attend-absent,
 .attend-excused,
 .attend-late {
-  border: none;
   border-radius: 999px;
   padding: 0.5rem 0.85rem;
   font-weight: 700;
   font-size: 0.8rem;
   cursor: pointer;
-  color: #fff;
-  opacity: 0.5;
-  transition: transform .15s ease, box-shadow .15s ease, opacity .15s ease;
+  transition: transform .15s ease, box-shadow .15s ease, background .15s ease, color .15s ease;
+  background: #f3f4f6;
+  color: #6b7280;
+  border: 2px solid #e5e7eb;
 }
-.attend-present { background: #16a34a; border: 2px solid #16a34a; }
-.attend-present.active { opacity: 1; box-shadow: 0 4px 12px rgba(22,163,74,0.5); transform: scale(1.1); }
-.attend-present:hover:not(.active) { opacity: 0.8; }
-.attend-absent { background: #dc2626; border: 2px solid #dc2626; }
-.attend-absent.active { opacity: 1; box-shadow: 0 4px 12px rgba(220,38,38,0.5); transform: scale(1.1); }
-.attend-absent:hover:not(.active) { opacity: 0.8; }
-.attend-excused { background: #ca8a04; border: 2px solid #ca8a04; }
-.attend-excused.active { opacity: 1; box-shadow: 0 4px 12px rgba(202,138,4,0.5); transform: scale(1.1); }
-.attend-excused:hover:not(.active) { opacity: 0.8; }
-.attend-late { background: #f59e0b; border: 2px solid #f59e0b; }
-.attend-late.active { opacity: 1; box-shadow: 0 4px 12px rgba(245,158,11,0.5); transform: scale(1.1); }
-.attend-late:hover:not(.active) { opacity: 0.8; }
-.attend-present:hover, .attend-absent:hover, .attend-excused:hover, .attend-late:hover { transform: translateY(-1px); }
+.attend-present.active { background: #16a34a; color: #fff; border-color: #16a34a; box-shadow: 0 4px 12px rgba(22,163,74,0.4); transform: scale(1.05); }
+.attend-absent.active { background: #dc2626; color: #fff; border-color: #dc2626; box-shadow: 0 4px 12px rgba(220,38,38,0.4); transform: scale(1.05); }
+.attend-excused.active { background: #ca8a04; color: #fff; border-color: #ca8a04; box-shadow: 0 4px 12px rgba(202,138,4,0.4); transform: scale(1.05); }
+.attend-late.active { background: #f59e0b; color: #fff; border-color: #f59e0b; box-shadow: 0 4px 12px rgba(245,158,11,0.4); transform: scale(1.05); }
+.attend-present:hover:not(.active) { background: #dcfce7; color: #16a34a; border-color: #16a34a; }
+.attend-absent:hover:not(.active) { background: #fee2e2; color: #dc2626; border-color: #dc2626; }
+.attend-excused:hover:not(.active) { background: #fef9c3; color: #ca8a04; border-color: #ca8a04; }
+.attend-late:hover:not(.active) { background: #fef3c7; color: #f59e0b; border-color: #f59e0b; }

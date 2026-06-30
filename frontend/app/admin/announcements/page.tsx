@@ -394,7 +394,7 @@ export default function Page() {
       </Modal>
 
       <Modal open={!!attendanceTarget} onClose={() => setAttendanceTarget(null)}>
-        <div className="section-outline-header"><div><h2>Daily Activity Attendance</h2><p>{attendanceTarget?.title}</p></div><button type="button" className="btn-outline" style={{ width: 'auto' }} onClick={() => setAttendanceTarget(null)}>Close</button></div>
+        <div className="section-outline-header"><div><h2>Daily Activity Attendance</h2><p>{attendanceTarget?.title}</p></div></div>
         <div className="panel-table-wrap" style={{ maxHeight: '60vh', overflow: 'auto' }}>
           <table className="panel-table">
             <thead><tr><th>Student</th><th>Status</th></tr></thead>
@@ -415,7 +415,10 @@ export default function Page() {
             </tbody>
           </table>
         </div>
-        <div style={{ display: 'flex', gap: '0.6rem', justifyContent: 'flex-end', padding: '1rem' }}><button type="button" className="btn-primary" onClick={saveAttendance} disabled={saving} style={{ width: 'auto', paddingInline: '1.25rem' }}>{saving ? 'Saving...' : 'Save Attendance'}</button><button type="button" className="btn-outline" onClick={() => setAttendanceTarget(null)} style={{ width: 'auto' }}>Cancel</button></div>
+        <div style={{ display: 'flex', gap: '0.6rem', justifyContent: 'flex-end', padding: '1rem', borderTop: '1px solid var(--border)' }}>
+          <button type="button" className="btn-primary" onClick={saveAttendance} disabled={saving} style={{ width: 'auto', paddingInline: '1.25rem' }}>{saving ? 'Saving...' : 'Save Attendance'}</button>
+          <button type="button" className="btn-outline" onClick={() => setAttendanceTarget(null)} style={{ width: 'auto' }}>End Attendance</button>
+        </div>
       </Modal>
 
       {deleteScheduleTarget ? (
